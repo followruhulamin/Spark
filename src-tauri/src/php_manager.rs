@@ -336,48 +336,61 @@ impl PhpManager {
             let socket = format!("/tmp/spark-php{}.sock", ver_clean);
             let legacy_socket = format!("/tmp/localdev-php{}.sock", ver_clean);
 
-            let etc_paths = [
-                PathBuf::from(format!("/opt/homebrew/etc/php/{}/php-fpm.d/www.conf", ver)),
-                PathBuf::from("/opt/homebrew/etc/php/8.6/php-fpm.d/www.conf"),
-            ];
+            let php_etc_dir = PathBuf::from(format!("/opt/homebrew/etc/php/{}", ver));
+            let brew_bin = PathBuf::from(format!("/opt/homebrew/opt/php@{}/bin/php", ver));
+            let default_brew_bin = PathBuf::from("/opt/homebrew/opt/php/bin/php");
+            let is_installed = brew_bin.exists()
+                || (ver == "8.6" && default_brew_bin.exists())
+                || php_etc_dir.exists();
 
+            if !is_installed {
+                continue;
+            }
+
+            // If php_etc_dir is a symlink pointing to another version, break the link into an independent folder
+            if php_etc_dir.is_symlink() {
+                if let Ok(real_dir) = fs::canonicalize(&php_etc_dir) {
+                    if real_dir != php_etc_dir {
+                        let _ = fs::remove_file(&php_etc_dir);
+                        let _ = Command::new("cp")
+                            .args(["-R", &real_dir.to_string_lossy(), &php_etc_dir.to_string_lossy()])
+                            .output();
+                    }
+                }
+            }
+
+            let www_conf = php_etc_dir.join("php-fpm.d/www.conf");
             let mut reloaded_service = false;
 
-            for www_conf in &etc_paths {
-                if www_conf.exists() {
-                    if let Ok(content) = fs::read_to_string(www_conf) {
-                        let needs_update = !content.contains(&socket)
-                            || content.contains(&legacy_socket)
-                            || content.contains("127.0.0.1:9000");
+            if www_conf.exists() {
+                if let Ok(content) = fs::read_to_string(&www_conf) {
+                    let needs_update = !content.contains(&socket)
+                        || content.contains(&legacy_socket)
+                        || content.contains("127.0.0.1:9000");
 
-                        if needs_update {
-                            let _ = Command::new("sed")
-                                .args(["-i", "", &format!("s|^listen = .*|listen = {}|", socket), &www_conf.to_string_lossy()])
-                                .output();
-                            let _ = Command::new("sed")
-                                .args(["-i", "", &format!("s|^;*listen.owner = .*|listen.owner = {}|", current_user), &www_conf.to_string_lossy()])
-                                .output();
-                            let _ = Command::new("sed")
-                                .args(["-i", "", "s|^;*listen.group = .*|listen.group = staff|", &www_conf.to_string_lossy()])
-                                .output();
-                            let _ = Command::new("sed")
-                                .args(["-i", "", "s|^;*listen.mode = .*|listen.mode = 0660|", &www_conf.to_string_lossy()])
-                                .output();
+                    if needs_update {
+                        let _ = Command::new("sed")
+                            .args(["-i", "", &format!("s|^listen = .*|listen = {}|", socket), &www_conf.to_string_lossy()])
+                            .output();
+                        let _ = Command::new("sed")
+                            .args(["-i", "", &format!("s|^;*listen.owner = .*|listen.owner = {}|", current_user), &www_conf.to_string_lossy()])
+                            .output();
+                        let _ = Command::new("sed")
+                            .args(["-i", "", "s|^;*listen.group = .*|listen.group = staff|", &www_conf.to_string_lossy()])
+                            .output();
+                        let _ = Command::new("sed")
+                            .args(["-i", "", "s|^;*listen.mode = .*|listen.mode = 0660|", &www_conf.to_string_lossy()])
+                            .output();
 
-                            let service_name = if ver == "8.6" { "php" } else { &format!("php@{}", ver) };
-                            let _ = Command::new("brew").args(["services", "restart", service_name]).output();
-                            reloaded_service = true;
-                        }
+                        let service_name = if ver == "8.6" { "php" } else { &format!("php@{}", ver) };
+                        let _ = Command::new("brew").args(["services", "restart", service_name]).output();
+                        reloaded_service = true;
                     }
                 }
             }
 
             // If socket doesn't exist yet but brew binary is present, start the service
-            let brew_bin = PathBuf::from(format!("/opt/homebrew/opt/php@{}/bin/php", ver));
-            let default_brew_bin = PathBuf::from("/opt/homebrew/opt/php/bin/php");
-            let is_installed = brew_bin.exists() || (ver == "8.6" && default_brew_bin.exists());
-
-            if is_installed && !Path::new(&socket).exists() && !reloaded_service {
+            if !Path::new(&socket).exists() && !reloaded_service {
                 let service_name = if ver == "8.6" { "php" } else { &format!("php@{}", ver) };
                 let _ = Command::new("brew").args(["services", "start", service_name]).output();
             }

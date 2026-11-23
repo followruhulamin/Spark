@@ -44,6 +44,23 @@ fn set_dock_icon() {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Ensure standard macOS CLI paths (/opt/homebrew/bin, /usr/local/bin, etc.) are in PATH
+    // when launched as a standalone GUI desktop app (.app bundle from Finder/Dock).
+    let current_path = std::env::var("PATH").unwrap_or_default();
+    let mut custom_paths = vec![
+        "/opt/homebrew/bin".to_string(),
+        "/opt/homebrew/sbin".to_string(),
+        "/usr/local/bin".to_string(),
+        "/usr/local/sbin".to_string(),
+    ];
+    if let Some(home) = dirs::home_dir() {
+        custom_paths.push(home.join("Library/Application Support/Herd/bin").to_string_lossy().to_string());
+        custom_paths.push(home.join(".config/herd-lite/bin").to_string_lossy().to_string());
+        custom_paths.push(home.join(".composer/vendor/bin").to_string_lossy().to_string());
+    }
+    custom_paths.push(current_path);
+    std::env::set_var("PATH", custom_paths.join(":"));
+
     let config_store = ConfigStore::new();
     let ssl_manager = SslManager::new();
     let mysql_manager = MysqlManager::new();
