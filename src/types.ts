@@ -2,6 +2,8 @@ export type StarterKit = 'none' | 'react' | 'vue' | 'svelte' | 'livewire';
 
 export type SupportedIde = 'antigravity' | 'cursor' | 'vscode' | 'zed';
 
+export type UpdateFrequency = 'daily' | 'weekly' | 'monthly' | 'never';
+
 export type FrameworkType = 'laravel' | 'react' | 'vue' | 'svelte' | 'livewire' | 'php' | 'static';
 
 export interface Site {
@@ -22,6 +24,9 @@ export interface AppSettings {
   launch_at_login: boolean;
   always_show_dock_icon: boolean;
   auto_update: boolean;
+  auto_check_updates?: boolean;
+  update_check_frequency?: UpdateFrequency;
+  last_update_check?: string | null;
   php_auto_patch: boolean;
   active_php_version: string;
   active_node_version: string;

@@ -35,6 +35,9 @@ const defaultSettings: AppSettings = {
   launch_at_login: true,
   always_show_dock_icon: true,
   auto_update: true,
+  auto_check_updates: true,
+  update_check_frequency: 'daily',
+  last_update_check: null,
   php_auto_patch: true,
   active_php_version: '8.4',
   active_node_version: 'v22',
@@ -96,6 +99,7 @@ export function App() {
   const [updateStatusText, setUpdateStatusText] = useState<string | null>(null);
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const settingsRef = useRef<AppSettings>(defaultSettings);
 
   // Scaffolding modal state
   const [scaffoldModal, setScaffoldModal] = useState<{
@@ -176,10 +180,16 @@ export function App() {
     // Check for updates on launch
     const updateTimer = setTimeout(() => {
       handleCheckForUpdates(false);
-    }, 2000);
+    }, 2500);
+
+    // Periodic check for updates every 30 minutes
+    const periodicTimer = setInterval(() => {
+      handleCheckForUpdates(false);
+    }, 30 * 60 * 1000);
 
     return () => {
       clearTimeout(updateTimer);
+      clearInterval(periodicTimer);
       unlistenScaffold.then((fn) => fn());
       unlistenDepProgress.then((fn) => fn());
       unlistenTray.then((fn) => fn());
@@ -187,11 +197,58 @@ export function App() {
     };
   }, []);
 
+  const shouldCheckForUpdates = (currentSettings: AppSettings): boolean => {
+    if (currentSettings.auto_check_updates === false || currentSettings.update_check_frequency === 'never') {
+      return false;
+    }
+
+    const lastCheckStr = currentSettings.last_update_check;
+    if (!lastCheckStr) {
+      return true;
+    }
+
+    const lastCheck = new Date(lastCheckStr).getTime();
+    if (isNaN(lastCheck)) {
+      return true;
+    }
+
+    const diffMs = Date.now() - lastCheck;
+    const frequency = currentSettings.update_check_frequency || 'daily';
+    const oneDay = 24 * 60 * 60 * 1000;
+
+    switch (frequency) {
+      case 'daily':
+        return diffMs >= oneDay;
+      case 'weekly':
+        return diffMs >= 7 * oneDay;
+      case 'monthly':
+        return diffMs >= 30 * oneDay;
+      default:
+        return diffMs >= oneDay;
+    }
+  };
+
   const handleCheckForUpdates = async (manual: boolean = false) => {
+    const currentSettings = settingsRef.current;
+    if (!manual && !shouldCheckForUpdates(currentSettings)) {
+      return;
+    }
+
     try {
       setIsCheckingUpdate(true);
-      setUpdateStatusText('Checking GitHub for updates...');
+      setUpdateStatusText('Checking for updates...');
       const update = await check();
+
+      const nowIso = new Date().toISOString();
+      setSettings((prev) => {
+        const updated = { ...prev, last_update_check: nowIso };
+        settingsRef.current = updated;
+        invoke('save_settings', { newSettings: updated }).catch((e) =>
+          console.warn('[Spark] Failed to save update check time:', e)
+        );
+        return updated;
+      });
+
       if (update) {
         setAvailableUpdate(update);
         setIsUpdateModalOpen(true);
@@ -310,6 +367,7 @@ export function App() {
     try {
       const data = await invoke<FullAppState>('get_app_state');
       setSettings(data.settings);
+      settingsRef.current = data.settings;
       setSites(data.sites);
       setPhpVersions(data.php_versions);
       setNodeVersions(data.node_versions);
@@ -528,6 +586,7 @@ export function App() {
 
   const handleUpdateSettings = async (newSettings: AppSettings) => {
     setSettings(newSettings);
+    settingsRef.current = newSettings;
     try {
       await invoke('save_settings', { newSettings });
     } catch {

@@ -46,6 +46,25 @@ impl Default for SupportedIde {
     }
 }
 
+fn default_true() -> bool {
+    true
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum UpdateFrequency {
+    Daily,
+    Weekly,
+    Monthly,
+    Never,
+}
+
+impl Default for UpdateFrequency {
+    fn default() -> Self {
+        UpdateFrequency::Daily
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppSettings {
     pub project_paths: Vec<String>,
@@ -53,6 +72,12 @@ pub struct AppSettings {
     pub launch_at_login: bool,
     pub always_show_dock_icon: bool,
     pub auto_update: bool,
+    #[serde(default = "default_true")]
+    pub auto_check_updates: bool,
+    #[serde(default)]
+    pub update_check_frequency: UpdateFrequency,
+    #[serde(default)]
+    pub last_update_check: Option<String>,
     pub php_auto_patch: bool,
     pub active_php_version: String,
     pub active_node_version: String,
@@ -76,6 +101,9 @@ impl Default for AppSettings {
             launch_at_login: true,
             always_show_dock_icon: true,
             auto_update: true,
+            auto_check_updates: true,
+            update_check_frequency: UpdateFrequency::Daily,
+            last_update_check: None,
             php_auto_patch: true,
             active_php_version: "8.4".to_string(),
             active_node_version: "v22".to_string(),
