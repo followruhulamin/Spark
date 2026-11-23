@@ -236,6 +236,18 @@ for a in assets:
         echo -e "${YELLOW}Uploaded asset. Response state: $UPLOAD_STATE${NC}"
       fi
 
+      # Sign zip bundle if Tauri private key exists
+      SIGNATURE=""
+      KEY_PATH="$HOME/.tauri/spark.key"
+      if [ -f "$KEY_PATH" ]; then
+        echo -e "${BLUE}Signing $ZIP_NAME with $KEY_PATH...${NC}"
+        npx tauri signer sign -f "$KEY_PATH" "$BUNDLE_DIR/$ZIP_NAME" -p "" --app-version "${CLEAN_VERSION}" 2>/dev/null || true
+        if [ -f "$BUNDLE_DIR/${ZIP_NAME}.sig" ]; then
+          SIGNATURE=$(cat "$BUNDLE_DIR/${ZIP_NAME}.sig" | tr -d '\n' | tr -d '\r')
+          echo -e "${GREEN}✓ Generated minisign signature for in-app updater manifest${NC}"
+        fi
+      fi
+
       # Generate and upload latest.json updater manifest for Tauri
       echo -e "\n${BLUE}Generating and uploading latest.json updater manifest...${NC}"
       PUB_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
@@ -247,11 +259,11 @@ for a in assets:
   "pub_date": "${PUB_DATE}",
   "platforms": {
     "darwin-aarch64": {
-      "signature": "",
+      "signature": "${SIGNATURE}",
       "url": "https://github.com/followruhulamin/Spark/releases/download/${TAG_NAME}/${ZIP_NAME}"
     },
     "darwin-x86_64": {
-      "signature": "",
+      "signature": "${SIGNATURE}",
       "url": "https://github.com/followruhulamin/Spark/releases/download/${TAG_NAME}/${ZIP_NAME}"
     }
   }
@@ -280,6 +292,29 @@ for a in assets:
         --data-binary @"$LATEST_JSON_PATH" \
         "https://uploads.github.com/repos/followruhulamin/Spark/releases/${RELEASE_ID}/assets?name=latest.json" >/dev/null
       echo -e "${GREEN}${BOLD}✓ Successfully uploaded latest.json updater manifest to GitHub Release!${NC}"
+
+      # Also upload .sig if available
+      if [ -f "$BUNDLE_DIR/${ZIP_NAME}.sig" ]; then
+        EXISTING_SIG_ID=$(echo "$RELEASE_DATA" | python3 -c "
+import sys, json
+assets = json.load(sys.stdin).get('assets', [])
+for a in assets:
+    if a.get('name') == '${ZIP_NAME}.sig':
+        print(a.get('id', ''))
+        break
+" 2>/dev/null || true)
+        if [ -n "$EXISTING_SIG_ID" ] && [ "$EXISTING_SIG_ID" != "None" ]; then
+          curl -s -X DELETE \
+            -H "Authorization: token $GH_TOKEN" \
+            "https://api.github.com/repos/followruhulamin/Spark/releases/assets/${EXISTING_SIG_ID}" >/dev/null
+        fi
+        curl -s -X POST \
+          -H "Authorization: token $GH_TOKEN" \
+          -H "Content-Type: text/plain" \
+          --data-binary @"$BUNDLE_DIR/${ZIP_NAME}.sig" \
+          "https://uploads.github.com/repos/followruhulamin/Spark/releases/${RELEASE_ID}/assets?name=${ZIP_NAME}.sig" >/dev/null
+        echo -e "${GREEN}${BOLD}✓ Successfully uploaded ${ZIP_NAME}.sig to GitHub Release!${NC}"
+      fi
     else
       echo -e "${RED}Warning: Could not create release via API. Upload manually at:${NC}"
       echo -e "https://github.com/followruhulamin/Spark/releases/new?tag=${TAG_NAME}"
