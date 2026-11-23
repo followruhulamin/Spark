@@ -51,6 +51,7 @@ pub fn create_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
 
     let _tray = TrayIconBuilder::with_id("main-tray")
         .icon(tray_icon)
+        .icon_as_template(true)
         .tooltip("Spark - macOS Local PHP/Laravel Environment")
         .menu(&menu)
         .show_menu_on_left_click(true)

@@ -1,11 +1,17 @@
 import os
 import subprocess
+import shutil
 from PIL import Image
 
 def export_icons():
     base_dir = os.path.dirname(os.path.abspath(__file__))
     master_path = os.path.join(base_dir, "master_icon.png")
+    if not os.path.exists(master_path):
+        raise FileNotFoundError(f"Master icon not found at {master_path}")
+
     master = Image.open(master_path)
+    tauri_icons_dir = os.path.join(base_dir, "src-tauri", "icons")
+    os.makedirs(tauri_icons_dir, exist_ok=True)
     
     # 1. Create iconset for macOS iconutil
     iconset_dir = os.path.join(base_dir, "icon.iconset")
@@ -30,13 +36,12 @@ def export_icons():
     print("Apple iconset generated.")
 
     # 2. Compile to icon.icns using macOS iconutil
-    icns_path = os.path.join(base_dir, "src-tauri/icons/icon.icns")
+    icns_path = os.path.join(tauri_icons_dir, "icon.icns")
     subprocess.run(["iconutil", "-c", "icns", iconset_dir, "-o", icns_path], check=True)
     print("Compiled src-tauri/icons/icon.icns successfully.")
+    shutil.rmtree(iconset_dir, ignore_errors=True)
 
     # 3. Export Tauri standard PNG icons
-    tauri_icons_dir = os.path.join(base_dir, "src-tauri/icons")
-    
     # icon.png (1024x1024)
     master.save(os.path.join(tauri_icons_dir, "icon.png"), "PNG")
     
