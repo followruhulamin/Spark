@@ -1,7 +1,7 @@
 {
   "name": "spark",
   "private": true,
-  "version": "0.2.1",
+  "version": "0.1.1",
   "type": "module",
   "description": "Native macOS Local PHP/Laravel Development Environment (Built with Rust & Tauri v2)",
   "scripts": {

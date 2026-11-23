@@ -1,10 +1,10 @@
-# ⚡ Spark v0.2.1 — Bug Fixes & Improvements
+# ⚡ Spark v0.1.1 — Bug Fixes & Improvements
 
 This release brings visual polish to macOS window controls, streamlined automated setup for fresh installs, compact responsive dependency management, and built-in auto-update support.
 
 ---
 
-## 🛠️ What's Fixed & Improved in v0.2.1
+## 🛠️ What's Fixed & Improved in v0.1.1
 
 ### 🪟 macOS Window Controls (Traffic Lights) Vertical Padding
 - **Balanced Titlebar Inset**: Fine-tuned native macOS window control positioning (`trafficLightPosition: { x: 18, y: 28 }`) to add vertical breathing room above the close, minimize, and zoom buttons.
@@ -27,6 +27,6 @@ This release brings visual polish to macOS window controls, streamlined automate
 
 ## 📦 Downloads & Verification
 
-- **Version**: `v0.2.1`
+- **Version**: `v0.1.1`
 - **Platform**: macOS 12.0+ (Apple Silicon `arm64` & Intel `x86_64`)
 - **Bundle**: `Spark.app`
