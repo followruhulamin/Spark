@@ -1,5 +1,5 @@
 import React from 'react';
-import { RefreshCw, Plus, Settings, Search } from 'lucide-react';
+import { Plus, Settings, Search } from 'lucide-react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { SparkLogo } from './SparkLogo';
 
@@ -10,8 +10,6 @@ interface HeaderProps {
   onToggleCreate: () => void;
   isSettingsOpen: boolean;
   onToggleSettings: () => void;
-  onRefresh: () => void;
-  isRefreshing: boolean;
   siteCount: number;
   missingRequiredCount?: number;
   onOpenSetup?: () => void;
@@ -24,8 +22,6 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleCreate,
   isSettingsOpen,
   onToggleSettings,
-  onRefresh,
-  isRefreshing,
   siteCount,
   missingRequiredCount = 0,
   onOpenSetup,
@@ -115,15 +111,6 @@ export const Header: React.FC<HeaderProps> = ({
               <span>Setup Required ({missingRequiredCount})</span>
             </button>
           )}
-
-          <button
-            onClick={onRefresh}
-            disabled={isRefreshing}
-            title="Refresh Sites and Services"
-            className="p-1.5 rounded-md hover:bg-white/[0.08] text-white/70 hover:text-white transition active:scale-95 disabled:opacity-50"
-          >
-            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-blue-400' : ''}`} />
-          </button>
 
           <button
             onClick={onToggleCreate}

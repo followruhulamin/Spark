@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Folder, Plus, Minus, ShieldCheck, Globe, Check, Loader2, KeyRound, Sparkles, RefreshCw } from 'lucide-react';
-import { AppSettings, SupportedIde, UpdateFrequency } from '../../types';
+import { Folder, Plus, Minus, ShieldCheck, Globe, Check, KeyRound, Loader2, Sparkles } from 'lucide-react';
+import { AppSettings, SupportedIde } from '../../types';
 
 interface GeneralTabProps {
   settings: AppSettings;
@@ -10,10 +10,6 @@ interface GeneralTabProps {
   onAutoConfigureRouting?: () => Promise<string>;
   onEnablePasswordlessSudo?: () => Promise<string>;
   onDisablePasswordlessSudo?: () => Promise<string>;
-  appVersion?: string;
-  onCheckForUpdates?: () => Promise<void>;
-  isCheckingUpdate?: boolean;
-  updateStatusText?: string | null;
 }
 
 export const GeneralTab: React.FC<GeneralTabProps> = ({
@@ -24,10 +20,6 @@ export const GeneralTab: React.FC<GeneralTabProps> = ({
   onAutoConfigureRouting,
   onEnablePasswordlessSudo,
   onDisablePasswordlessSudo,
-  appVersion,
-  onCheckForUpdates,
-  isCheckingUpdate = false,
-  updateStatusText = null,
 }) => {
   const [newPathInput, setNewPathInput] = useState('');
   const [caLoading, setCaLoading] = useState(false);
@@ -64,63 +56,9 @@ export const GeneralTab: React.FC<GeneralTabProps> = ({
     }
   };
 
-  const formatLastChecked = (dateStr?: string | null): string => {
-    if (!dateStr) return 'Never checked';
-    try {
-      const date = new Date(dateStr);
-      if (isNaN(date.getTime())) return 'Never checked';
-
-      const now = new Date();
-      const isToday = date.toDateString() === now.toDateString();
-      const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-      if (isToday) {
-        return `Today at ${timeStr}`;
-      }
-
-      const yesterday = new Date();
-      yesterday.setDate(yesterday.getDate() - 1);
-      if (date.toDateString() === yesterday.toDateString()) {
-        return `Yesterday at ${timeStr}`;
-      }
-
-      return `${date.toLocaleDateString([], { month: 'short', day: 'numeric' })} at ${timeStr}`;
-    } catch {
-      return 'Never checked';
-    }
-  };
-
   const handleToggle = async (key: keyof AppSettings) => {
-    if (key === 'auto_check_updates') {
-      const willBeEnabled = settings.auto_check_updates === false || settings.update_check_frequency === 'never';
-      const updated: AppSettings = {
-        ...settings,
-        auto_check_updates: willBeEnabled,
-        update_check_frequency: willBeEnabled
-          ? (settings.update_check_frequency === 'never' ? 'daily' : (settings.update_check_frequency || 'daily'))
-          : 'never',
-      };
-      await onUpdateSettings(updated);
-      return;
-    }
     const updated = { ...settings, [key]: !settings[key] };
     await onUpdateSettings(updated);
-  };
-
-  const handleFrequencyChange = async (freq: UpdateFrequency) => {
-    if (freq === 'never') {
-      await onUpdateSettings({
-        ...settings,
-        auto_check_updates: false,
-        update_check_frequency: 'never',
-      });
-    } else {
-      await onUpdateSettings({
-        ...settings,
-        auto_check_updates: true,
-        update_check_frequency: freq,
-      });
-    }
   };
 
   const handleIdeChange = async (ide: SupportedIde) => {
@@ -305,121 +243,6 @@ export const GeneralTab: React.FC<GeneralTabProps> = ({
             onClick={() => handleToggle('always_show_dock_icon')}
             className={`w-10 h-5 flex items-center rounded-full p-0.5 transition duration-200 ease-in-out ${settings.always_show_dock_icon ? 'bg-blue-600 justify-end' : 'bg-white/20 justify-start'
               }`}
-          >
-            <span className="w-4 h-4 bg-white rounded-full shadow-md" />
-          </button>
-        </div>
-      </div>
-
-      {/* Software Updates */}
-      <div className="p-4 rounded-xl bg-white/[0.03] border border-white/[0.08] space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h4 className="text-xs font-semibold text-white uppercase tracking-wider flex items-center space-x-2">
-              <Sparkles className="w-3.5 h-3.5 text-blue-400" />
-              <span>Software Updates</span>
-            </h4>
-            <p className="text-xs text-white/50 mt-0.5">
-              Check for new releases, configure check frequency, and install updates.
-            </p>
-          </div>
-          {onCheckForUpdates && (
-            <button
-              onClick={onCheckForUpdates}
-              disabled={isCheckingUpdate}
-              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 transition active:scale-95 disabled:opacity-50"
-            >
-              {isCheckingUpdate ? (
-                <>
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  <span>Checking...</span>
-                </>
-              ) : (
-                <>
-                  <RefreshCw className="w-3.5 h-3.5 text-blue-400" />
-                  <span>Check for Updates</span>
-                </>
-              )}
-            </button>
-          )}
-        </div>
-
-        {/* Current Version & Last Checked Status */}
-        <div className="flex items-center justify-between px-3 py-2.5 rounded-lg bg-white/[0.02] border border-white/[0.06]">
-          <div className="space-y-0.5">
-            <div className="flex items-center space-x-2">
-              <span className="text-xs font-semibold text-white">Spark v{appVersion || '0.1.0'}</span>
-              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                Installed
-              </span>
-            </div>
-            <div className="text-[11px] text-white/50">
-              {updateStatusText || `Last checked: ${formatLastChecked(settings.last_update_check)}`}
-            </div>
-          </div>
-
-          <div className="text-right">
-            <span className="text-[11px] text-white/40 block">
-              {settings.auto_check_updates !== false && settings.update_check_frequency !== 'never'
-                ? `Checking ${
-                    settings.update_check_frequency === 'weekly'
-                      ? 'Weekly'
-                      : settings.update_check_frequency === 'monthly'
-                      ? 'Monthly'
-                      : 'Daily'
-                  }`
-                : 'Auto-check disabled'}
-            </span>
-          </div>
-        </div>
-
-        {/* Automatically Check for Updates Toggle */}
-        <div className="flex items-center justify-between pt-1">
-          <div>
-            <div className="text-xs font-medium text-white">Automatically Check for Updates</div>
-            <div className="text-[11px] text-white/50">Periodically check GitHub releases for new Spark releases</div>
-          </div>
-          <button
-            onClick={() => handleToggle('auto_check_updates')}
-            className={`w-10 h-5 flex items-center rounded-full p-0.5 transition duration-200 ease-in-out ${
-              settings.auto_check_updates !== false && settings.update_check_frequency !== 'never'
-                ? 'bg-blue-600 justify-end'
-                : 'bg-white/20 justify-start'
-            }`}
-          >
-            <span className="w-4 h-4 bg-white rounded-full shadow-md" />
-          </button>
-        </div>
-
-        {/* Check Frequency Dropdown */}
-        <div className="flex items-center justify-between pt-1">
-          <div>
-            <div className="text-xs font-medium text-white">Check Frequency</div>
-            <div className="text-[11px] text-white/50">Choose how often Spark automatically checks for updates</div>
-          </div>
-          <select
-            value={settings.auto_check_updates === false ? 'never' : (settings.update_check_frequency || 'daily')}
-            onChange={(e) => handleFrequencyChange(e.target.value as UpdateFrequency)}
-            className="bg-[#1e1e24] hover:bg-[#25252d] text-xs font-medium text-white border border-white/[0.1] rounded-lg px-2.5 py-1.5 outline-none focus:border-blue-500 transition cursor-pointer"
-          >
-            <option value="daily">Every Day</option>
-            <option value="weekly">Every Week</option>
-            <option value="monthly">Every Month</option>
-            <option value="never">Never (Turn off auto-check)</option>
-          </select>
-        </div>
-
-        {/* Automatic Install Toggle */}
-        <div className="flex items-center justify-between pt-1">
-          <div>
-            <div className="text-xs font-medium text-white">Update App Automatically</div>
-            <div className="text-[11px] text-white/50">Download and apply stable background updates automatically</div>
-          </div>
-          <button
-            onClick={() => handleToggle('auto_update')}
-            className={`w-10 h-5 flex items-center rounded-full p-0.5 transition duration-200 ease-in-out ${
-              settings.auto_update ? 'bg-blue-600 justify-end' : 'bg-white/20 justify-start'
-            }`}
           >
             <span className="w-4 h-4 bg-white rounded-full shadow-md" />
           </button>

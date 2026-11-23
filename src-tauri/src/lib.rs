@@ -13,6 +13,7 @@ pub mod ssl;
 pub mod tray;
 
 use std::sync::Mutex;
+use tauri::Manager;
 use commands::*;
 use config::ConfigStore;
 use mysql_manager::MysqlManager;
@@ -123,6 +124,8 @@ pub fn run() {
                 set_dock_icon();
             }
             let handle = app.handle();
+            let state = app.state::<AppState>();
+            state.services.ensure_nginx_running();
             if let Err(err) = tray::create_tray(handle) {
                 eprintln!("[Spark] Failed to create system tray: {err}");
             }

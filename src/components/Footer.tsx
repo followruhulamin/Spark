@@ -1,5 +1,5 @@
 import React from 'react';
-import { Sparkles } from 'lucide-react';
+import { Sparkles, RefreshCw } from 'lucide-react';
 import { ServiceHealth } from '../types';
 
 interface FooterProps {
@@ -7,6 +7,8 @@ interface FooterProps {
   serviceHealth: ServiceHealth;
   newVersion?: string | null;
   onOpenUpdate?: () => void;
+  onRestartServices?: () => void;
+  isRestarting?: boolean;
 }
 
 export const Footer: React.FC<FooterProps> = ({
@@ -14,6 +16,8 @@ export const Footer: React.FC<FooterProps> = ({
   serviceHealth,
   newVersion,
   onOpenUpdate,
+  onRestartServices,
+  isRestarting,
 }) => {
   return (
     <footer className="shrink-0 h-[30px] z-30 flex items-center justify-between px-4 bg-[#141418]/95 backdrop-blur-xl border-t border-white/[0.08] select-none text-[11px] font-mono">
@@ -36,8 +40,20 @@ export const Footer: React.FC<FooterProps> = ({
         )}
       </div>
 
-      {/* Right: Service Health Indicators */}
+      {/* Right: Service Health Indicators & Restart */}
       <div className="flex items-center space-x-2">
+        {onRestartServices && (
+          <button
+            onClick={onRestartServices}
+            disabled={isRestarting}
+            title="Restart all local background services"
+            className="flex items-center space-x-1.5 px-2 py-0.5 rounded-full bg-white/[0.04] hover:bg-white/[0.08] active:scale-95 border border-white/[0.08] text-white/70 hover:text-white transition disabled:opacity-50 pointer-events-auto mr-1"
+          >
+            <RefreshCw className={`w-2.5 h-2.5 ${isRestarting ? 'animate-spin text-blue-400' : ''}`} />
+            <span className="font-sans font-medium text-[10px]">Restart</span>
+          </button>
+        )}
+
         <div
           title={`Nginx Web Server: ${serviceHealth.nginx}`}
           className="flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.06] transition pointer-events-auto"

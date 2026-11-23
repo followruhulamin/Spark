@@ -221,25 +221,50 @@ server {{
         let _ = fs::remove_file(conf_file);
     }
 
+    pub fn ensure_nginx_running(&self) {
+        if !self.is_nginx_running() {
+            let nginx_bin = if Path::new("/opt/homebrew/bin/nginx").exists() {
+                "/opt/homebrew/bin/nginx"
+            } else if Path::new("/usr/local/bin/nginx").exists() {
+                "/usr/local/bin/nginx"
+            } else {
+                "nginx"
+            };
+            let _ = Command::new(nginx_bin).output();
+            let _ = Command::new("brew").args(["services", "start", "nginx"]).output();
+        }
+    }
+
     pub fn reload_nginx(&self) {
+        if !self.is_nginx_running() {
+            self.ensure_nginx_running();
+            return;
+        }
         let _ = Command::new("nginx").args(["-s", "reload"]).output();
         let _ = Command::new("killall").args(["-HUP", "nginx-arm64"]).output();
     }
 
     pub fn start_all(&self) -> Result<String, String> {
         let _ = self.mysql.start();
-        self.reload_nginx();
+        self.ensure_nginx_running();
         Ok("All background services started".to_string())
     }
 
     pub fn stop_all(&self) -> Result<String, String> {
         let _ = self.mysql.stop();
+        let _ = Command::new("nginx").args(["-s", "stop"]).output();
+        let _ = Command::new("brew").args(["services", "stop", "nginx"]).output();
         Ok("Background services stopped".to_string())
     }
 
     pub fn restart_all(&self) -> Result<String, String> {
         let _ = self.mysql.restart();
-        self.reload_nginx();
+        if self.is_nginx_running() {
+            let _ = Command::new("nginx").args(["-s", "reload"]).output();
+        } else {
+            self.ensure_nginx_running();
+        }
+        let _ = Command::new("brew").args(["services", "restart", "nginx"]).output();
         Ok("All background services restarted".to_string())
     }
 }

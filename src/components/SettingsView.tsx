@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Sliders, FileCode, Layers, Database, ArrowLeft, Cpu } from 'lucide-react';
+import { Sliders, FileCode, Layers, Database, ArrowLeft, Cpu, Sparkles } from 'lucide-react';
+import type { Update } from '@tauri-apps/plugin-updater';
 import {
   AppSettings,
   DatabaseInfo,
@@ -16,8 +17,9 @@ import { DependenciesTab } from './Settings/DependenciesTab';
 import { PhpTab } from './Settings/PhpTab';
 import { NodeTab } from './Settings/NodeTab';
 import { MysqlTab } from './Settings/MysqlTab';
+import { UpdatesTab } from './Settings/UpdatesTab';
 
-type SettingsTab = 'general' | 'dependencies' | 'php' | 'node' | 'mysql';
+type SettingsTab = 'general' | 'dependencies' | 'php' | 'node' | 'mysql' | 'updates';
 
 interface SettingsViewProps {
   settings: AppSettings;
@@ -62,6 +64,7 @@ interface SettingsViewProps {
   onInstallNodeVersion?: (ver: string) => Promise<string>;
   onUninstallNodeVersion?: (ver: string) => Promise<string>;
   onRefreshVersions?: () => Promise<void>;
+  availableUpdate?: Update | null;
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({
@@ -107,6 +110,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onInstallNodeVersion,
   onUninstallNodeVersion,
   onRefreshVersions,
+  availableUpdate,
 }) => {
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const mainRef = useRef<HTMLElement>(null);
@@ -128,6 +132,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     { id: 'php' as const, label: 'PHP', icon: FileCode },
     { id: 'node' as const, label: 'JavaScript (Node)', icon: Layers },
     { id: 'mysql' as const, label: 'MySQL Server', icon: Database },
+    {
+      id: 'updates' as const,
+      label: 'Software Update',
+      icon: Sparkles,
+      badge: availableUpdate ? 'Update' : undefined,
+    },
   ];
 
   return (
@@ -186,16 +196,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           {activeTab === 'general' && (
             <GeneralTab
               settings={settings}
-              appVersion={appVersion}
               onUpdateSettings={onUpdateSettings}
               onSetupRootCa={onSetupRootCa}
               onSetupDns={onSetupDns}
               onAutoConfigureRouting={onAutoConfigureRouting}
               onEnablePasswordlessSudo={onEnablePasswordlessSudo}
               onDisablePasswordlessSudo={onDisablePasswordlessSudo}
-              onCheckForUpdates={onCheckForUpdates}
-              isCheckingUpdate={isCheckingUpdate}
-              updateStatusText={updateStatusText}
             />
           )}
 
@@ -251,6 +257,18 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               onCreateDatabase={onCreateDatabase}
               onDropDatabase={onDropDatabase}
               onOpenClient={onOpenDatabaseClient}
+            />
+          )}
+
+          {activeTab === 'updates' && (
+            <UpdatesTab
+              appVersion={appVersion || '0.2.1'}
+              settings={settings}
+              onUpdateSettings={onUpdateSettings}
+              onCheckForUpdates={onCheckForUpdates || (() => {})}
+              isCheckingUpdate={isCheckingUpdate || false}
+              updateStatusText={updateStatusText || null}
+              availableUpdate={availableUpdate || null}
             />
           )}
         </div>

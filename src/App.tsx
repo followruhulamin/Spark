@@ -614,10 +614,13 @@ export function App() {
 
   const handleRestartAll = async () => {
     try {
+      setIsRefreshing(true);
       await invoke('restart_all_services');
-      await loadAppState();
+      await handleRefresh();
     } catch {
       //
+    } finally {
+      setIsRefreshing(false);
     }
   };
 
@@ -637,8 +640,6 @@ export function App() {
           setIsSettingsOpen(!isSettingsOpen);
           if (isCreateOpen) setIsCreateOpen(false);
         }}
-        onRefresh={handleRefresh}
-        isRefreshing={isRefreshing}
         siteCount={sites.length}
         missingRequiredCount={dependencies.filter((d) => d.is_required && !d.is_installed).length}
         onOpenSetup={() => setIsFirstRunModalOpen(true)}
@@ -697,6 +698,7 @@ export function App() {
           onCheckForUpdates={() => handleCheckForUpdates(true)}
           isCheckingUpdate={isCheckingUpdate}
           updateStatusText={updateStatusText}
+          availableUpdate={availableUpdate}
         />
       ) : (
         /* View A: Applications Manager (Main Window) */
@@ -736,6 +738,8 @@ export function App() {
         serviceHealth={serviceHealth}
         newVersion={availableUpdate?.version}
         onOpenUpdate={() => setIsUpdateModalOpen(true)}
+        onRestartServices={handleRestartAll}
+        isRestarting={isRefreshing}
       />
 
       {/* Link Existing App Modal */}
