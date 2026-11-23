@@ -18,6 +18,7 @@ import {
   Zap,
   Folder,
   Code,
+  Check,
 } from 'lucide-react';
 import { AppSettings, DependencyItem, ScaffoldLogEvent, SupportedIde } from '../types';
 import { formatDependencyVersion } from './Settings/DependenciesTab';
@@ -467,10 +468,12 @@ export const DependencySetupModal: React.FC<DependencySetupModalProps> = ({
 
                         <div className="flex items-center space-x-2 shrink-0 ml-3">
                           {dep.is_installed ? (
-                            <span className="flex items-center space-x-1 px-2.5 py-1 rounded-full text-[11px] font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                              <CheckCircle2 className="w-3 h-3" />
-                              <span>Installed</span>
-                            </span>
+                            <div
+                              className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center shrink-0"
+                              title={`${dep.name} is installed`}
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                            </div>
                           ) : (
                             <button
                               onClick={() => handleInstallSingle(dep.id)}

@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import {
   Download,
-  CheckCircle2,
-  AlertCircle,
+  Check,
   RefreshCw,
   Loader2,
   Terminal,
@@ -244,7 +243,7 @@ export const DependenciesTab: React.FC<DependenciesTabProps> = ({
       )}
 
       {/* Filter Tabs */}
-      <div className="flex items-center space-x-1.5 border-b border-white/[0.08] pb-2 text-xs">
+      <div className="flex items-center space-x-1.5 border-b border-white/[0.08] pb-2 text-xs overflow-x-auto no-scrollbar">
         {[
           { id: 'all' as const, label: 'All Items' },
           { id: 'core' as const, label: 'Core Infrastructure' },
@@ -255,7 +254,7 @@ export const DependenciesTab: React.FC<DependenciesTabProps> = ({
           <button
             key={tab.id}
             onClick={() => setSelectedFilter(tab.id)}
-            className={`px-3 py-1.5 rounded-lg font-medium transition ${
+            className={`px-3 py-1.5 rounded-lg font-medium whitespace-nowrap transition shrink-0 ${
               selectedFilter === tab.id
                 ? 'bg-white/[0.1] text-white'
                 : 'text-white/50 hover:text-white/80 hover:bg-white/[0.04]'
@@ -273,17 +272,17 @@ export const DependenciesTab: React.FC<DependenciesTabProps> = ({
           return (
             <div
               key={dep.id}
-              className="flex items-center justify-between p-3.5 hover:bg-white/[0.03] transition"
+              className="flex items-center justify-between p-3 sm:p-3.5 hover:bg-white/[0.03] transition gap-2 sm:gap-3"
             >
-              <div className="flex items-center space-x-3.5 min-w-0 flex-1">
+              <div className="flex items-center space-x-2.5 sm:space-x-3.5 min-w-0 flex-1">
                 <div className="p-2 rounded-xl bg-white/[0.04] border border-white/[0.08] shrink-0">
                   {getCategoryIcon(dep.category)}
                 </div>
 
                 <div className="min-w-0 flex-1">
                   {/* Line 1: Name only (plus essential badge if required) */}
-                  <div className="flex items-center space-x-2">
-                    <span className="text-xs font-semibold text-white">{dep.name}</span>
+                  <div className="flex items-center space-x-2 flex-wrap gap-y-0.5">
+                    <span className="text-xs font-semibold text-white truncate">{dep.name}</span>
                     {dep.is_required && (
                       <span className="text-[9px] font-mono uppercase px-1.5 py-0.5 rounded bg-red-500/10 text-red-400 border border-red-500/20 shrink-0">
                         Essential
@@ -300,60 +299,56 @@ export const DependenciesTab: React.FC<DependenciesTabProps> = ({
 
                   {/* Line 3: Location (Binary path) */}
                   {dep.binary_path && (
-                    <div className="text-[10px] text-white/30 font-mono mt-0.5 truncate">
+                    <div className="text-[10px] text-white/30 font-mono mt-0.5 truncate max-w-[180px] sm:max-w-xs md:max-w-md">
                       {dep.binary_path}
                     </div>
                   )}
                 </div>
               </div>
 
-              <div className="flex items-center space-x-3 shrink-0 ml-4">
-                <span
-                  className={`text-[11px] font-mono px-2 py-0.5 rounded-full flex items-center space-x-1 ${
-                    dep.is_installed
-                      ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                      : 'bg-white/[0.05] text-white/40 border border-white/[0.06]'
-                  }`}
-                >
-                  {dep.is_installed ? (
-                    <>
-                      <CheckCircle2 className="w-3 h-3" />
-                      <span>{dep.status}</span>
-                    </>
-                  ) : (
-                    <>
-                      <AlertCircle className="w-3 h-3 text-amber-400" />
-                      <span className="text-amber-400/80">{dep.status}</span>
-                    </>
-                  )}
-                </span>
+              {/* Actions Right Side */}
+              <div className="flex items-center space-x-1.5 sm:space-x-2 shrink-0 ml-2 sm:ml-4">
+                {dep.is_installed ? (
+                  <>
+                    {/* Installed status button (Just a green tick) */}
+                    <button
+                      onClick={() => handleInstallOne(dep.id)}
+                      disabled={isInstalling}
+                      className="p-1.5 sm:p-2 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 transition active:scale-95 disabled:opacity-50 flex items-center justify-center shrink-0"
+                      title={`${dep.name} is installed (${formatDependencyVersion(dep.version)}). Click to update or reinstall.`}
+                    >
+                      {isThisInstalling ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-400" />
+                      ) : (
+                        <Check className="w-3.5 h-3.5" />
+                      )}
+                    </button>
 
-                <button
-                  onClick={() => handleInstallOne(dep.id)}
-                  disabled={isInstalling}
-                  className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition active:scale-95 disabled:opacity-50 ${
-                    dep.is_installed
-                      ? 'bg-white/[0.04] hover:bg-white/[0.08] text-white/60 hover:text-white border border-white/[0.06]'
-                      : 'bg-blue-600 hover:bg-blue-500 text-white shadow-sm shadow-blue-500/20'
-                  }`}
-                >
-                  {isThisInstalling ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <Download className="w-3.5 h-3.5" />
-                  )}
-                  <span>{dep.is_installed ? 'Update / Reinstall' : 'Install'}</span>
-                </button>
-
-                {dep.is_installed && dep.id !== 'brew' && (
+                    {/* Uninstall button (Just the trash icon with red bordered background) */}
+                    {dep.id !== 'brew' && onUninstallDependency && (
+                      <button
+                        onClick={() => handleUninstallOne(dep)}
+                        disabled={isInstalling}
+                        className="p-1.5 sm:p-2 rounded-lg text-red-400/90 hover:text-red-300 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 transition active:scale-95 disabled:opacity-50 flex items-center justify-center shrink-0"
+                        title={`Uninstall ${dep.name}`}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </>
+                ) : (
                   <button
-                    onClick={() => handleUninstallOne(dep)}
+                    onClick={() => handleInstallOne(dep.id)}
                     disabled={isInstalling}
-                    className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-red-400/90 hover:text-red-300 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 transition active:scale-95 disabled:opacity-50"
-                    title={`Uninstall ${dep.name}`}
+                    className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-600 hover:bg-blue-500 text-white shadow-sm shadow-blue-500/20 transition active:scale-95 disabled:opacity-50 shrink-0"
+                    title={`Install ${dep.name}`}
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    <span>Uninstall</span>
+                    {isThisInstalling ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Download className="w-3.5 h-3.5" />
+                    )}
+                    <span>Install</span>
                   </button>
                 )}
               </div>

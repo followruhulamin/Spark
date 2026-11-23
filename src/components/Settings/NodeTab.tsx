@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Package, Trash2, Download, Loader2 } from 'lucide-react';
+import { Package, Trash2, Download, Loader2, Check } from 'lucide-react';
 import { confirm as tauriConfirm } from '@tauri-apps/plugin-dialog';
 import { AppSettings, NodeVersionInfo, PackageManagersState } from '../../types';
 
@@ -213,23 +213,22 @@ export const NodeTab: React.FC<NodeTabProps> = ({
                   </div>
                 </div>
 
-                <div className="flex items-center space-x-2 shrink-0" onClick={(e) => e.stopPropagation()}>
-                  <span
-                    className={`text-[11px] font-mono px-2 py-0.5 rounded-full ${
-                      item.is_installed
-                        ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                        : 'bg-white/[0.05] text-white/40'
-                    }`}
-                  >
-                    {item.is_installed ? 'Installed' : 'Available'}
-                  </span>
+                <div className="flex items-center space-x-1.5 sm:space-x-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+                  {item.is_installed && (
+                    <div
+                      className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center shrink-0"
+                      title={`Node.js ${item.version} is installed`}
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                    </div>
+                  )}
 
                   {item.is_installed ? (
                     <button
                       type="button"
                       disabled={isActionLoading}
                       onClick={() => handleUninstall(item.version)}
-                      className="px-2 py-1 text-[11px] font-medium text-red-400/90 hover:text-red-300 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 rounded-lg flex items-center space-x-1 transition-all disabled:opacity-50"
+                      className="p-1.5 rounded-lg text-red-400/90 hover:text-red-300 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 transition-all disabled:opacity-50 shrink-0 flex items-center justify-center"
                       title={`Uninstall Node.js ${item.version}`}
                     >
                       {isActionLoading ? (
@@ -237,7 +236,6 @@ export const NodeTab: React.FC<NodeTabProps> = ({
                       ) : (
                         <Trash2 className="w-3 h-3" />
                       )}
-                      <span>Uninstall</span>
                     </button>
                   ) : (
                     <button
