@@ -1,32 +1,27 @@
-# ⚡ Spark v0.1.1 — Bug Fixes & Improvements
+# ⚡ Spark v0.1.2 — Bug Fixes & Service Resilience
 
-This release brings visual polish to macOS window controls, streamlined automated setup for fresh installs, compact responsive dependency management, and built-in auto-update support.
+This release fixes the `502 Bad Gateway` error on PHP sites, adds self-healing FastCGI pool management, and ensures background PHP-FPM daemons automatically start and configure upon app launch.
 
 ---
 
-## 🛠️ What's Fixed & Improved in v0.1.1
+## 🛠️ What's Fixed & Improved in v0.1.2
 
-### 🪟 macOS Window Controls (Traffic Lights) Vertical Padding
-- **Balanced Titlebar Inset**: Fine-tuned native macOS window control positioning (`trafficLightPosition: { x: 18, y: 28 }`) to add vertical breathing room above the close, minimize, and zoom buttons.
-- **Header Alignment**: Window control buttons are now vertically centered alongside the Spark logo and search bar in the 50px header instead of crowding the top edge of the window.
+### 🔌 PHP-FPM FastCGI Socket Auto-Configuration (Fixes 502 Bad Gateway)
+- **Automatic Pool Alignment**: Spark now automatically inspects installed PHP versions and configures their FastCGI pools (`www.conf`) to listen on `/tmp/spark-php{version}.sock`.
+- **Dynamic User Permissions**: Socket ownership and permissions (`listen.owner`, `listen.group`, `listen.mode`) are now dynamically assigned using the active macOS user instead of hardcoded paths.
+- **Legacy Socket Bridging**: Bi-directional symlinks are automatically established between `/tmp/localdev-php*.sock` and `/tmp/spark-php*.sock` to ensure zero downtime or broken upstream references.
 
-### 🚀 Automated Initial Setup on First Install
-- **Zero-Touch Background Setup**: Spark now automatically detects passwordless sudo and configures Local Root CA trust in the macOS System Keychain and `/etc/resolver/test` routing immediately upon first launch.
-- **1-Click "Run Initial Setup"**: Added a guided setup modal and an "Auto-Configure Both" shortcut in Settings > General, so you never have to manually run multiple terminal commands to configure DNS routing and SSL.
+### ⚙️ Self-Healing Service & Daemon Lifecycle
+- **Automated Daemon Startup**: Spark now validates and activates background PHP-FPM daemons alongside Nginx and MySQL immediately when the desktop app launches.
+- **Service Restart Hook**: Clicking "Restart" in the footer now reloads PHP-FPM (`killall -USR2 php-fpm`), Nginx, and MySQL in a single unified operation.
 
-### 🎨 Compact & Responsive Dependency Management UI
-- **Icon-Only Uninstall Buttons**: Replaced wide "Uninstall" text buttons across Dependencies, PHP, and Node tabs with compact red-bordered icon buttons (`Trash2`), saving substantial horizontal space.
-- **Clean Green Status Checkmarks**: Replaced bulky "Installed" labels with minimalist green checkmark badges (`Check`).
-- **Responsive List Layouts**: Improved layout responsiveness across all dependency rows to prevent awkward wrapping on narrower window sizes.
-
-### 🔄 In-App Software Updater
-- **Automated Update Detection**: Integrated `@tauri-apps/plugin-updater` with dedicated `UpdateModal` to check for and install new Spark releases seamlessly.
-- **Status Bar Indicator**: Added a notification indicator in the footer when a newer version is available on GitHub Releases.
+### 🧹 Clean-First Release Packaging
+- **Zero-Cache Bundling**: The automated release builder cleans previous bundle directories and validates `CFBundleShortVersionString` in `Info.plist` before generating the distribution zip.
 
 ---
 
 ## 📦 Downloads & Verification
 
-- **Version**: `v0.1.1`
+- **Version**: `v0.1.2`
 - **Platform**: macOS 12.0+ (Apple Silicon `arm64` & Intel `x86_64`)
 - **Bundle**: `Spark.app`

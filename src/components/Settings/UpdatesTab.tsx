@@ -222,34 +222,77 @@ export const UpdatesTab: React.FC<UpdatesTabProps> = ({
             )}
           </div>
         ) : (
-          /* State B: Up to Date or Idle */
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3.5">
-              <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
-                <CheckCircle2 className="w-5 h-5" />
-              </div>
-              <div>
-                <div className="flex items-center space-x-2">
-                  <span className="text-sm font-semibold text-white">Spark is up to date</span>
-                  <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-white/[0.06] text-white/60 border border-white/[0.08]">
-                    v{appVersion}
-                  </span>
-                </div>
-                <div className="text-xs text-white/50 mt-0.5">
-                  {updateStatusText || `Last checked: ${formatLastChecked(settings.last_update_check)}`}
-                </div>
-              </div>
-            </div>
+          /* State B: Up to Date, Checking, Error, or GitHub Release */
+          (() => {
+            const isError = Boolean(
+              updateStatusText && /could not reach|error|failed|unable/i.test(updateStatusText)
+            );
+            const isGitHubUpdateOnly = Boolean(
+              updateStatusText && /available on github/i.test(updateStatusText)
+            );
 
-            <button
-              onClick={onCheckForUpdates}
-              disabled={isCheckingUpdate}
-              className="flex items-center space-x-1.5 px-3.5 py-2 rounded-lg text-xs font-medium bg-white/[0.06] hover:bg-white/[0.1] text-white border border-white/[0.08] transition active:scale-95 disabled:opacity-50"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${isCheckingUpdate ? 'animate-spin text-blue-400' : ''}`} />
-              <span>{isCheckingUpdate ? 'Checking...' : 'Check for Updates'}</span>
-            </button>
-          </div>
+            return (
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3.5">
+                  {isError ? (
+                    <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 shrink-0">
+                      <AlertCircle className="w-5 h-5" />
+                    </div>
+                  ) : isGitHubUpdateOnly ? (
+                    <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 shrink-0">
+                      <Sparkles className="w-5 h-5" />
+                    </div>
+                  ) : (
+                    <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
+                      <CheckCircle2 className="w-5 h-5" />
+                    </div>
+                  )}
+
+                  <div>
+                    <div className="flex items-center space-x-2">
+                      <span className="text-sm font-semibold text-white">
+                        {isError
+                          ? 'Unable to Check for Updates'
+                          : isGitHubUpdateOnly
+                          ? 'New Spark Release Available'
+                          : isCheckingUpdate
+                          ? 'Checking for Updates...'
+                          : 'Spark is up to date'}
+                      </span>
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-white/[0.06] text-white/60 border border-white/[0.08]">
+                        v{appVersion}
+                      </span>
+                    </div>
+                    <div className={`text-xs mt-0.5 ${isError ? 'text-amber-400/80' : 'text-white/50'}`}>
+                      {updateStatusText || `Last checked: ${formatLastChecked(settings.last_update_check)}`}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  {isGitHubUpdateOnly && (
+                    <a
+                      href="https://github.com/followruhulamin/Spark/releases/latest"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center space-x-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-blue-600 hover:bg-blue-500 text-white shadow-sm transition active:scale-95"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      <span>View Release</span>
+                    </a>
+                  )}
+                  <button
+                    onClick={onCheckForUpdates}
+                    disabled={isCheckingUpdate}
+                    className="flex items-center space-x-1.5 px-3.5 py-2 rounded-lg text-xs font-medium bg-white/[0.06] hover:bg-white/[0.1] text-white border border-white/[0.08] transition active:scale-95 disabled:opacity-50"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isCheckingUpdate ? 'animate-spin text-blue-400' : ''}`} />
+                    <span>{isCheckingUpdate ? 'Checking...' : 'Check for Updates'}</span>
+                  </button>
+                </div>
+              </div>
+            );
+          })()
         )}
       </div>
 

@@ -76,7 +76,7 @@ export function App() {
     yarn: false,
   });
   const [serviceHealth, setServiceHealth] = useState<ServiceHealth>(defaultServiceHealth);
-  const [appVersion, setAppVersion] = useState<string>('0.1.1');
+  const [appVersion, setAppVersion] = useState<string>('0.1.2');
 
   const [searchQuery, setSearchQuery] = useState('');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -197,6 +197,20 @@ export function App() {
     };
   }, []);
 
+  const compareVersions = (v1: string, v2: string): number => {
+    const clean1 = v1.replace(/^v/, '').split('-')[0];
+    const clean2 = v2.replace(/^v/, '').split('-')[0];
+    const p1 = clean1.split('.').map((x) => parseInt(x, 10) || 0);
+    const p2 = clean2.split('.').map((x) => parseInt(x, 10) || 0);
+    for (let i = 0; i < Math.max(p1.length, p2.length); i++) {
+      const n1 = p1[i] ?? 0;
+      const n2 = p2[i] ?? 0;
+      if (n1 > n2) return 1;
+      if (n1 < n2) return -1;
+    }
+    return 0;
+  };
+
   const shouldCheckForUpdates = (currentSettings: AppSettings): boolean => {
     if (currentSettings.auto_check_updates === false || currentSettings.update_check_frequency === 'never') {
       return false;
@@ -274,7 +288,44 @@ export function App() {
       }
     } catch (err: any) {
       console.warn('[Spark] Update check error:', err);
-      setUpdateStatusText(manual ? 'Could not reach update server' : null);
+
+      // Fallback: If Tauri updater threw an error (e.g. 404 if latest.json is missing or format changed),
+      // query the GitHub Releases API to verify if we are up to date before declaring the server unreachable.
+      let resolvedViaFallback = false;
+      try {
+        const ghRes = await fetch('https://api.github.com/repos/followruhulamin/Spark/releases/latest', {
+          headers: { Accept: 'application/vnd.github.v3+json' },
+        });
+        if (ghRes.ok) {
+          const ghData = await ghRes.json();
+          const remoteTag = ghData.tag_name || '';
+          if (remoteTag) {
+            const cmp = compareVersions(remoteTag, appVersion);
+            const nowIso = new Date().toISOString();
+            setSettings((prev) => {
+              const updated = { ...prev, last_update_check: nowIso };
+              settingsRef.current = updated;
+              invoke('save_settings', { newSettings: updated }).catch((e) =>
+                console.warn('[Spark] Failed to save update check time:', e)
+              );
+              return updated;
+            });
+
+            if (cmp <= 0) {
+              setUpdateStatusText(`Spark is up to date (v${appVersion})`);
+            } else {
+              setUpdateStatusText(`Update ${remoteTag} available on GitHub!`);
+            }
+            resolvedViaFallback = true;
+          }
+        }
+      } catch (fallbackErr) {
+        console.warn('[Spark] GitHub API fallback also failed:', fallbackErr);
+      }
+
+      if (!resolvedViaFallback) {
+        setUpdateStatusText(manual ? 'Could not reach update server' : null);
+      }
     } finally {
       setIsCheckingUpdate(false);
     }
