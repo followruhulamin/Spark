@@ -90,8 +90,16 @@ sed -i '' "s/v[0-9]*\.[0-9]*\.[0-9]*/v${CLEAN_VERSION}/g" RELEASE_NOTES.md
 
 echo -e "${GREEN}✓ Version updated to ${CLEAN_VERSION} in config files and RELEASE_NOTES.md${NC}\n"
 
-# 4. Compile Production macOS Application Bundle
-echo -e "${BLUE}Compiling production macOS application bundle with Tauri v2...${NC}"
+# 4. Clean Previous Production Bundle Artifacts
+echo -e "${BLUE}Cleaning previous bundle artifacts in src-tauri/target/release/bundle/macos and dist/...${NC}"
+rm -rf src-tauri/target/release/bundle/macos
+rm -rf dist
+rm -f src-tauri/target/release/spark
+mkdir -p src-tauri/target/release/bundle/macos
+echo -e "${GREEN}✓ Cleaned bundle directory to ensure fresh compilation${NC}\n"
+
+# 5. Compile Fresh Production macOS Application Bundle
+echo -e "${BLUE}Compiling fresh production macOS application bundle with Tauri v2...${NC}"
 
 if [ -z "${TAURI_SIGNING_PRIVATE_KEY:-}" ]; then
   # Temporarily disable createUpdaterArtifacts if signing key is not in env so local build completes with exit code 0
@@ -101,7 +109,7 @@ if [ -z "${TAURI_SIGNING_PRIVATE_KEY:-}" ]; then
     conf.bundle.createUpdaterArtifacts = false;
     fs.writeFileSync('src-tauri/tauri.conf.json', JSON.stringify(conf, null, 2) + '\n');
   "
-  npm run tauri:build || true
+  npm run tauri:build
   # Restore createUpdaterArtifacts
   node -e "
     const fs = require('fs');
@@ -118,9 +126,13 @@ BUNDLE_DIR="src-tauri/target/release/bundle/macos"
 ZIP_NAME="Spark_${TAG_NAME}.zip"
 
 if [ ! -d "$APP_PATH" ]; then
-  echo -e "${RED}Error: Production bundle not found at $APP_PATH${NC}"
+  echo -e "${RED}Error: Fresh production bundle was not created at $APP_PATH${NC}"
   exit 1
 fi
+
+# Verify built version from Info.plist
+BUILT_VER=$(plutil -p "${APP_PATH}/Contents/Info.plist" | grep "CFBundleShortVersionString" | awk -F'"' '{print $4}' || true)
+echo -e "${GREEN}✓ Verified newly compiled Spark.app version: ${BUILT_VER}${NC}"
 
 echo -e "\n${BLUE}Packaging $ZIP_NAME inside $BUNDLE_DIR...${NC}"
 cd "$BUNDLE_DIR"
@@ -130,11 +142,11 @@ ditto -c -k --sequesterRsrc --keepParent Spark.app "$ZIP_NAME"
 cp "$ZIP_NAME" "Spark_${CLEAN_VERSION}.zip"
 cd - > /dev/null
 
-echo -e "${GREEN}✓ Packaged macOS zip bundle:${NC}"
+echo -e "${GREEN}✓ Freshly packaged macOS zip bundle:${NC}"
 ls -lh "$BUNDLE_DIR/$ZIP_NAME"
 echo ""
 
-# 5. Git Stage, Commit & Tag
+# 6. Git Stage, Commit & Tag
 echo -e "${BLUE}Staging release commits...${NC}"
 git add package.json src-tauri/Cargo.toml src-tauri/tauri.conf.json src/App.tsx RELEASE_NOTES.md .gitignore
 git add -A src/ src-tauri/src/ src-tauri/Cargo.lock package-lock.json 2>/dev/null || true
@@ -150,7 +162,7 @@ else
   echo -e "${YELLOW}Using existing git tag: ${TAG_NAME}${NC}\n"
 fi
 
-# 6. Push to GitHub & Upload Assets
+# 7. Push to GitHub & Upload Assets
 if [ "$AUTO_CONFIRM" = true ]; then
   confirm="y"
 else
