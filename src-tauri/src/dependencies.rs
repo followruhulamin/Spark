@@ -426,11 +426,12 @@ impl DependencyManager {
 
                 // Configure FPM pool socket
                 let www_conf = PathBuf::from("/opt/homebrew/etc/php/8.5/php-fpm.d/www.conf");
+                let current_user = std::env::var("USER").unwrap_or_else(|_| "ruhulamin".to_string());
                 if www_conf.exists() {
                     let _ = Command::new("sed").args(["-i", "", "s|^listen = .*|listen = /tmp/spark-php85.sock|", &www_conf.to_string_lossy()]).output();
-                    let _ = Command::new("sed").args(["-i", "", "s|^;listen.owner = .*|listen.owner = ruhulamin|", &www_conf.to_string_lossy()]).output();
-                    let _ = Command::new("sed").args(["-i", "", "s|^;listen.group = .*|listen.group = staff|", &www_conf.to_string_lossy()]).output();
-                    let _ = Command::new("sed").args(["-i", "", "s|^;listen.mode = .*|listen.mode = 0660|", &www_conf.to_string_lossy()]).output();
+                    let _ = Command::new("sed").args(["-i", "", &format!("s|^;*listen.owner = .*|listen.owner = {}|", current_user), &www_conf.to_string_lossy()]).output();
+                    let _ = Command::new("sed").args(["-i", "", "s|^;*listen.group = .*|listen.group = staff|", &www_conf.to_string_lossy()]).output();
+                    let _ = Command::new("sed").args(["-i", "", "s|^;*listen.mode = .*|listen.mode = 0660|", &www_conf.to_string_lossy()]).output();
                 }
 
                 let _ = Command::new("brew").args(["services", "restart", "php@8.5"]).output();
@@ -444,11 +445,12 @@ impl DependencyManager {
 
                 // Configure FPM pool socket
                 let www_conf = PathBuf::from("/opt/homebrew/etc/php/8.4/php-fpm.d/www.conf");
+                let current_user = std::env::var("USER").unwrap_or_else(|_| "ruhulamin".to_string());
                 if www_conf.exists() {
                     let _ = Command::new("sed").args(["-i", "", "s|^listen = .*|listen = /tmp/spark-php84.sock|", &www_conf.to_string_lossy()]).output();
-                    let _ = Command::new("sed").args(["-i", "", "s|^;listen.owner = .*|listen.owner = ruhulamin|", &www_conf.to_string_lossy()]).output();
-                    let _ = Command::new("sed").args(["-i", "", "s|^;listen.group = .*|listen.group = staff|", &www_conf.to_string_lossy()]).output();
-                    let _ = Command::new("sed").args(["-i", "", "s|^;listen.mode = .*|listen.mode = 0660|", &www_conf.to_string_lossy()]).output();
+                    let _ = Command::new("sed").args(["-i", "", &format!("s|^;*listen.owner = .*|listen.owner = {}|", current_user), &www_conf.to_string_lossy()]).output();
+                    let _ = Command::new("sed").args(["-i", "", "s|^;*listen.group = .*|listen.group = staff|", &www_conf.to_string_lossy()]).output();
+                    let _ = Command::new("sed").args(["-i", "", "s|^;*listen.mode = .*|listen.mode = 0660|", &www_conf.to_string_lossy()]).output();
                 }
 
                 let _ = Command::new("brew").args(["services", "restart", "php@8.4"]).output();

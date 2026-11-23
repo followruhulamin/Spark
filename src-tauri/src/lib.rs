@@ -99,6 +99,10 @@ pub fn run() {
         }
     }
 
+    // 4. Ensure FastCGI pool sockets and Nginx daemon are active
+    php_manager::PhpManager::ensure_all_fpm_configured_and_running();
+    service_manager.ensure_nginx_running();
+
     let _ = service_manager.sync_vhosts(&scanned_sites, Some(&initial_settings.active_php_version));
 
     let app_state = AppState {

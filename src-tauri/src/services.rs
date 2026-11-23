@@ -120,6 +120,12 @@ impl ServiceManager {
         };
         let php_version = php_ver_str.replace('.', "");
         let fpm_socket = format!("/tmp/spark-php{}.sock", php_version);
+        let legacy_socket = format!("/tmp/localdev-php{}.sock", php_version);
+
+        #[cfg(unix)]
+        if !Path::new(&fpm_socket).exists() && Path::new(&legacy_socket).exists() {
+            let _ = std::os::unix::fs::symlink(&legacy_socket, &fpm_socket);
+        }
 
         let conf_content = if site.secured && cert_path.exists() && key_path.exists() {
             format!(
@@ -222,6 +228,7 @@ server {{
     }
 
     pub fn ensure_nginx_running(&self) {
+        crate::php_manager::PhpManager::ensure_all_fpm_configured_and_running();
         if !self.is_nginx_running() {
             let nginx_bin = if Path::new("/opt/homebrew/bin/nginx").exists() {
                 "/opt/homebrew/bin/nginx"
@@ -246,6 +253,7 @@ server {{
 
     pub fn start_all(&self) -> Result<String, String> {
         let _ = self.mysql.start();
+        crate::php_manager::PhpManager::ensure_all_fpm_configured_and_running();
         self.ensure_nginx_running();
         Ok("All background services started".to_string())
     }
@@ -259,6 +267,8 @@ server {{
 
     pub fn restart_all(&self) -> Result<String, String> {
         let _ = self.mysql.restart();
+        crate::php_manager::PhpManager::ensure_all_fpm_configured_and_running();
+        let _ = Command::new("killall").args(["-USR2", "php-fpm"]).output();
         if self.is_nginx_running() {
             let _ = Command::new("nginx").args(["-s", "reload"]).output();
         } else {

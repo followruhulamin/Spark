@@ -1,5 +1,5 @@
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use crate::models::{PhpIniSettings, PhpVersionInfo};
 
@@ -267,15 +267,16 @@ impl PhpManager {
             return Err(format!("Installation failed: {}", err));
         }
 
+        let current_user = std::env::var("USER").unwrap_or_else(|_| "ruhulamin".to_string());
         let ver_clean = version.replace('.', "");
         let etc_ver = if version == "8.6" { "8.6" } else { version };
         let www_conf = PathBuf::from(format!("/opt/homebrew/etc/php/{}/php-fpm.d/www.conf", etc_ver));
         if www_conf.exists() {
             let socket = format!("/tmp/spark-php{}.sock", ver_clean);
             let _ = Command::new("sed").args(["-i", "", &format!("s|^listen = .*|listen = {}|", socket), &www_conf.to_string_lossy()]).output();
-            let _ = Command::new("sed").args(["-i", "", "s|^;listen.owner = .*|listen.owner = ruhulamin|", &www_conf.to_string_lossy()]).output();
-            let _ = Command::new("sed").args(["-i", "", "s|^;listen.group = .*|listen.group = staff|", &www_conf.to_string_lossy()]).output();
-            let _ = Command::new("sed").args(["-i", "", "s|^;listen.mode = .*|listen.mode = 0660|", &www_conf.to_string_lossy()]).output();
+            let _ = Command::new("sed").args(["-i", "", &format!("s|^;*listen.owner = .*|listen.owner = {}|", current_user), &www_conf.to_string_lossy()]).output();
+            let _ = Command::new("sed").args(["-i", "", "s|^;*listen.group = .*|listen.group = staff|", &www_conf.to_string_lossy()]).output();
+            let _ = Command::new("sed").args(["-i", "", "s|^;*listen.mode = .*|listen.mode = 0660|", &www_conf.to_string_lossy()]).output();
         }
 
         let service_name = match version {
@@ -322,5 +323,74 @@ impl PhpManager {
         }
 
         Ok(format!("PHP {} uninstalled successfully", version))
+    }
+
+    /// Automatically inspects installed PHP versions, verifies/updates their FastCGI pool configuration
+    /// to listen on /tmp/spark-php{version}.sock, and ensures background php-fpm services are active.
+    pub fn ensure_all_fpm_configured_and_running() {
+        let current_user = std::env::var("USER").unwrap_or_else(|_| "ruhulamin".to_string());
+        let major_versions = ["8.6", "8.5", "8.4", "8.3", "8.2", "8.1"];
+
+        for ver in major_versions {
+            let ver_clean = ver.replace('.', "");
+            let socket = format!("/tmp/spark-php{}.sock", ver_clean);
+            let legacy_socket = format!("/tmp/localdev-php{}.sock", ver_clean);
+
+            let etc_paths = [
+                PathBuf::from(format!("/opt/homebrew/etc/php/{}/php-fpm.d/www.conf", ver)),
+                PathBuf::from("/opt/homebrew/etc/php/8.6/php-fpm.d/www.conf"),
+            ];
+
+            let mut reloaded_service = false;
+
+            for www_conf in &etc_paths {
+                if www_conf.exists() {
+                    if let Ok(content) = fs::read_to_string(www_conf) {
+                        let needs_update = !content.contains(&socket)
+                            || content.contains(&legacy_socket)
+                            || content.contains("127.0.0.1:9000");
+
+                        if needs_update {
+                            let _ = Command::new("sed")
+                                .args(["-i", "", &format!("s|^listen = .*|listen = {}|", socket), &www_conf.to_string_lossy()])
+                                .output();
+                            let _ = Command::new("sed")
+                                .args(["-i", "", &format!("s|^;*listen.owner = .*|listen.owner = {}|", current_user), &www_conf.to_string_lossy()])
+                                .output();
+                            let _ = Command::new("sed")
+                                .args(["-i", "", "s|^;*listen.group = .*|listen.group = staff|", &www_conf.to_string_lossy()])
+                                .output();
+                            let _ = Command::new("sed")
+                                .args(["-i", "", "s|^;*listen.mode = .*|listen.mode = 0660|", &www_conf.to_string_lossy()])
+                                .output();
+
+                            let service_name = if ver == "8.6" { "php" } else { &format!("php@{}", ver) };
+                            let _ = Command::new("brew").args(["services", "restart", service_name]).output();
+                            reloaded_service = true;
+                        }
+                    }
+                }
+            }
+
+            // If socket doesn't exist yet but brew binary is present, start the service
+            let brew_bin = PathBuf::from(format!("/opt/homebrew/opt/php@{}/bin/php", ver));
+            let default_brew_bin = PathBuf::from("/opt/homebrew/opt/php/bin/php");
+            let is_installed = brew_bin.exists() || (ver == "8.6" && default_brew_bin.exists());
+
+            if is_installed && !Path::new(&socket).exists() && !reloaded_service {
+                let service_name = if ver == "8.6" { "php" } else { &format!("php@{}", ver) };
+                let _ = Command::new("brew").args(["services", "start", service_name]).output();
+            }
+
+            // Create bi-directional compatibility symlink if one exists but not the other
+            #[cfg(unix)]
+            {
+                if Path::new(&socket).exists() && !Path::new(&legacy_socket).exists() {
+                    let _ = std::os::unix::fs::symlink(&socket, &legacy_socket);
+                } else if Path::new(&legacy_socket).exists() && !Path::new(&socket).exists() {
+                    let _ = std::os::unix::fs::symlink(&legacy_socket, &socket);
+                }
+            }
+        }
     }
 }
