@@ -1,25 +1,24 @@
-# ⚡ Spark v0.1.3 — Production App 502 Fix & Manual Download
+# ⚡ Spark v0.1.4 — Move Site Feature & Enhanced In-App Updater
 
-This release resolves the production `502 Bad Gateway` error in standalone macOS app bundles, prevents PHP version pool config collisions, and introduces a direct "Download Manually (.zip)" option in the update dialog.
+This release introduces the **Move Site** feature to easily migrate any site folder to a new location on disk, alongside improvements to the in-app updater and release pipeline.
 
 ---
 
-## 🛠️ What's Fixed & Improved in v0.1.3
+## 🛠️ What's New & Improved in v0.1.4
 
-### 🖥️ Standalone macOS App CLI Environment (Fixes Production 502)
-- **Automatic GUI PATH Initialization**: macOS GUI apps launched from Finder/Dock run in a restricted environment without shell PATH. Spark now automatically injects `/opt/homebrew/bin`, `/opt/homebrew/sbin`, `/usr/local/bin`, and runtime bin directories on startup so `brew`, `nginx`, and `php-fpm` work seamlessly in production.
-- **Strict PHP Version Isolation**: Fixed a bug where shared config symlinks in Homebrew caused PHP 8.4's socket to be overwritten by subsequent versions during startup scans. Each version is now strictly isolated to its own `/tmp/spark-php{ver}.sock`.
+### 📁 Move Site via Three-Dot Menu
+- **Interactive Move Modal**: Added a "Move Site" option to each site's three-dot (`•••`) menu. Select a new destination directory using the native macOS folder picker (`pick_folder`) with real-time target path preview.
+- **Cross-Volume Migration Support**: Uses standard filesystem rename with an automatic fallback to macOS `ditto` + clean removal to safely handle moves across different disk mounts and external drives.
+- **Automatic Nginx Virtual Host Sync**: Automatically updates the Nginx vhost config (`<domain>.conf`) with the new root directory and reloads Nginx (`nginx -s reload`) without requiring domain re-creation or downtime.
 
-### 📦 Manual Download Option for Updates
-- **1-Click Manual Zip Download**: Added a "Download Manually (.zip)" button in the Software Update modal and Settings tab, allowing instant direct zip downloads in your browser whenever preferred.
-
-### 🔐 Cryptographic Minisign Verification
-- **Automated Signature Injection**: Releases are automatically signed with your Minisign key and paired with verified signatures in `latest.json` for error-free in-app auto-updating.
+### ⚡ Updater & Release Pipeline
+- **Cryptographic Minisign Signatures**: Automatically signs release archives with Minisign and generates the `latest.json` updater manifest for error-free in-app auto-updates.
+- **Clean Bundle Compilation**: Ensures stale binaries or cached UI assets are cleared before packaging production releases.
 
 ---
 
 ## 📦 Downloads & Verification
 
-- **Version**: `v0.1.3`
+- **Version**: `v0.1.4`
 - **Platform**: macOS 12.0+ (Apple Silicon `arm64` & Intel `x86_64`)
 - **Bundle**: `Spark.app`
