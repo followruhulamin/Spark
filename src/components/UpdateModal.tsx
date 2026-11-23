@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { ArrowRight, Download, Loader2, Sparkles, X } from 'lucide-react';
+import { ArrowRight, Download, ExternalLink, Loader2, Sparkles, X } from 'lucide-react';
 import type { Update } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
+import { invoke } from '@tauri-apps/api/core';
 import { SparkLogo } from './SparkLogo';
 
 interface UpdateModalProps {
@@ -73,6 +74,15 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({
       setErrorMessage(err?.message || err?.toString() || 'Failed to download and install update.');
       setIsUpdating(false);
       setStatusMessage(null);
+    }
+  };
+
+  const handleManualDownload = async () => {
+    const downloadUrl = `https://github.com/followruhulamin/Spark/releases/download/v${update.version}/Spark_v${update.version}.zip`;
+    try {
+      await invoke('open_in_browser', { url: downloadUrl });
+    } catch {
+      window.open(downloadUrl, '_blank');
     }
   };
 
@@ -178,41 +188,61 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({
 
           {/* Error Message */}
           {errorMessage && (
-            <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-xs text-red-300 space-y-1">
-              <div className="font-semibold">Update Error</div>
-              <div className="text-[11px] opacity-90">{errorMessage}</div>
+            <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-xs text-red-300 space-y-2">
+              <div>
+                <div className="font-semibold">Update Error</div>
+                <div className="text-[11px] opacity-90">{errorMessage}</div>
+              </div>
+              <button
+                onClick={handleManualDownload}
+                className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-200 border border-red-500/30 text-[11px] font-medium transition"
+              >
+                <Download className="w-3 h-3" />
+                <span>Download Spark_v{update.version}.zip manually</span>
+              </button>
             </div>
           )}
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-3.5 bg-white/[0.02] border-t border-white/[0.08] flex items-center justify-end space-x-2">
-          {!isUpdating && (
-            <button
-              onClick={onClose}
-              className="px-3.5 py-1.5 rounded-lg text-xs font-medium text-white/70 hover:text-white hover:bg-white/[0.06] transition"
-            >
-              Remind Me Later
-            </button>
-          )}
-
+        <div className="px-5 py-3.5 bg-white/[0.02] border-t border-white/[0.08] flex items-center justify-between">
           <button
-            onClick={handleInstallUpdate}
-            disabled={isUpdating}
-            className="flex items-center space-x-2 px-4 py-1.5 rounded-lg text-xs font-semibold bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-lg shadow-blue-500/25 transition active:scale-95 disabled:opacity-50"
+            onClick={handleManualDownload}
+            className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-white/50 hover:text-white hover:bg-white/[0.06] transition"
+            title="Download the .zip release directly in your browser"
           >
-            {isUpdating ? (
-              <>
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                <span>Updating...</span>
-              </>
-            ) : (
-              <>
-                <Download className="w-3.5 h-3.5" />
-                <span>Update & Restart</span>
-              </>
-            )}
+            <ExternalLink className="w-3.5 h-3.5" />
+            <span>Download Manually</span>
           </button>
+
+          <div className="flex items-center space-x-2">
+            {!isUpdating && (
+              <button
+                onClick={onClose}
+                className="px-3.5 py-1.5 rounded-lg text-xs font-medium text-white/70 hover:text-white hover:bg-white/[0.06] transition"
+              >
+                Remind Me Later
+              </button>
+            )}
+
+            <button
+              onClick={handleInstallUpdate}
+              disabled={isUpdating}
+              className="flex items-center space-x-2 px-4 py-1.5 rounded-lg text-xs font-semibold bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-lg shadow-blue-500/25 transition active:scale-95 disabled:opacity-50"
+            >
+              {isUpdating ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span>Updating...</span>
+                </>
+              ) : (
+                <>
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Update & Restart</span>
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </div>
     </div>

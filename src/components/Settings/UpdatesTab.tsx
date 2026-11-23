@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import type { Update } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
+import { invoke } from '@tauri-apps/api/core';
 import { AppSettings, UpdateFrequency } from '../../types';
 import { SparkLogo } from '../SparkLogo';
 
@@ -135,6 +136,16 @@ export const UpdatesTab: React.FC<UpdatesTabProps> = ({
     }
   };
 
+  const handleManualDownload = async () => {
+    if (!availableUpdate) return;
+    const downloadUrl = `https://github.com/followruhulamin/Spark/releases/download/v${availableUpdate.version}/Spark_v${availableUpdate.version}.zip`;
+    try {
+      await invoke('open_in_browser', { url: downloadUrl });
+    } catch {
+      window.open(downloadUrl, '_blank');
+    }
+  };
+
   return (
     <div className="space-y-6 max-w-2xl">
       {/* Header */}
@@ -172,13 +183,24 @@ export const UpdatesTab: React.FC<UpdatesTabProps> = ({
               </div>
 
               {!isUpdating && (
-                <button
-                  onClick={handleInstallUpdate}
-                  className="flex items-center space-x-2 px-4 py-2 rounded-lg text-xs font-semibold bg-gradient-to-tr from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-lg shadow-blue-600/30 transition active:scale-95"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>Download & Restart</span>
-                </button>
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={handleManualDownload}
+                    className="flex items-center space-x-1.5 px-3 py-2 rounded-lg text-xs font-medium text-white/70 hover:text-white bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.1] transition active:scale-95"
+                    title="Download the .zip release directly from GitHub"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    <span>Download Manually (.zip)</span>
+                  </button>
+
+                  <button
+                    onClick={handleInstallUpdate}
+                    className="flex items-center space-x-2 px-4 py-2 rounded-lg text-xs font-semibold bg-gradient-to-tr from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-lg shadow-blue-600/30 transition active:scale-95"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Download & Restart</span>
+                  </button>
+                </div>
               )}
             </div>
 
@@ -215,9 +237,18 @@ export const UpdatesTab: React.FC<UpdatesTabProps> = ({
             )}
 
             {errorMessage && (
-              <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs flex items-center space-x-2">
-                <AlertCircle className="w-4 h-4 shrink-0" />
-                <span>{errorMessage}</span>
+              <div className="p-3.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs space-y-2">
+                <div className="flex items-center space-x-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{errorMessage}</span>
+                </div>
+                <button
+                  onClick={handleManualDownload}
+                  className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-md bg-red-500/20 hover:bg-red-500/30 text-red-200 border border-red-500/30 text-[11px] font-medium transition"
+                >
+                  <Download className="w-3 h-3" />
+                  <span>Download Spark_v{availableUpdate.version}.zip manually</span>
+                </button>
               </div>
             )}
           </div>
