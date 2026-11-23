@@ -1,0 +1,642 @@
+use std::path::PathBuf;
+use std::process::Command;
+use std::sync::Mutex;
+use tauri::{AppHandle, State};
+use crate::config::ConfigStore;
+use crate::dependencies::DependencyManager;
+use crate::dns::DnsResolverManager;
+use crate::models::*;
+use crate::mysql_manager::MysqlManager;
+use crate::node_manager::NodeManager;
+use crate::php_manager::PhpManager;
+use crate::scaffolding::ScaffoldingEngine;
+use crate::services::ServiceManager;
+use crate::ssl::SslManager;
+
+pub struct AppState {
+    pub config: ConfigStore,
+    pub ssl: SslManager,
+    pub mysql: MysqlManager,
+    pub services: ServiceManager,
+    pub sites: Mutex<Vec<Site>>,
+    pub settings: Mutex<AppSettings>,
+}
+
+#[derive(serde::Serialize)]
+pub struct FullAppState {
+    pub settings: AppSettings,
+    pub sites: Vec<Site>,
+    pub php_versions: Vec<PhpVersionInfo>,
+    pub node_versions: Vec<NodeVersionInfo>,
+    pub mysql_status: MysqlStatus,
+    pub service_health: ServiceHealth,
+    pub package_managers: PackageManagersState,
+}
+
+#[tauri::command]
+pub fn get_app_version() -> String {
+    env!("CARGO_PKG_VERSION").to_string()
+}
+
+#[tauri::command]
+pub fn get_app_state(state: State<'_, AppState>) -> Result<FullAppState, String> {
+    let settings = state.settings.lock().map_err(|e| e.to_string())?.clone();
+    let sites = state.sites.lock().map_err(|e| e.to_string())?.clone();
+    let php_versions = PhpManager::get_available_versions();
+    let node_versions = NodeManager::get_available_versions();
+    let mysql_status = state.mysql.get_status();
+    let service_health = state.services.get_service_health();
+    let package_managers = NodeManager::get_package_managers_state();
+
+    Ok(FullAppState {
+        settings,
+        sites,
+        php_versions,
+        node_versions,
+        mysql_status,
+        service_health,
+        package_managers,
+    })
+}
+
+#[tauri::command]
+pub fn save_settings(new_settings: AppSettings, state: State<'_, AppState>) -> Result<AppSettings, String> {
+    let mut settings = state.settings.lock().map_err(|e| e.to_string())?;
+    *settings = new_settings.clone();
+    let sites = state.sites.lock().map_err(|e| e.to_string())?;
+    state.config.save(&settings, &sites)?;
+    Ok(new_settings)
+}
+
+#[tauri::command]
+pub fn scan_project_paths(state: State<'_, AppState>) -> Result<Vec<Site>, String> {
+    let settings = state.settings.lock().map_err(|e| e.to_string())?;
+    let mut sites = state.sites.lock().map_err(|e| e.to_string())?;
+    
+    let scanned = state.config.scan_project_paths(&settings.project_paths, &sites, &state.ssl);
+    *sites = scanned.clone();
+    state.config.save(&settings, &sites)?;
+    let _ = state.services.sync_vhosts(&sites, Some(&settings.active_php_version));
+    Ok(scanned)
+}
+
+#[tauri::command]
+pub async fn create_site(
+    app_handle: AppHandle,
+    params: CreateAppParams,
+    state: State<'_, AppState>,
+) -> Result<Site, String> {
+    let default_root = {
+        let settings = state.settings.lock().map_err(|e| e.to_string())?;
+        let first_path = settings.project_paths.first().cloned().unwrap_or_else(|| "~/Spark".to_string());
+        if first_path.starts_with("~/") {
+            let p = dirs::home_dir().unwrap_or_default().join(&first_path[2..]);
+            let _ = std::fs::create_dir_all(&p);
+            p
+        } else {
+            let p = PathBuf::from(first_path);
+            let _ = std::fs::create_dir_all(&p);
+            p
+        }
+    };
+
+    let target_root = match params.target_dir.as_ref() {
+        Some(dir) => PathBuf::from(dir),
+        None => default_root,
+    };
+
+    let new_site = ScaffoldingEngine::create_app(app_handle, params, target_root).await?;
+
+    {
+        let settings = state.settings.lock().map_err(|e| e.to_string())?;
+        let mut sites = state.sites.lock().map_err(|e| e.to_string())?;
+        sites.retain(|s| s.path != new_site.path);
+        sites.insert(0, new_site.clone());
+        state.config.save(&settings, &sites)?;
+        let _ = state.services.generate_vhost_config(&new_site, Some(&settings.active_php_version));
+        state.services.reload_nginx();
+    }
+
+    Ok(new_site)
+}
+
+#[tauri::command]
+pub fn link_site(path: String, custom_domain: Option<String>, state: State<'_, AppState>) -> Result<Site, String> {
+    let p = PathBuf::from(&path);
+    if !p.exists() {
+        return Err("Directory does not exist".to_string());
+    }
+
+    let folder_name = p.file_name().unwrap_or_default().to_string_lossy().to_string();
+    let raw_domain = custom_domain
+        .filter(|d| !d.trim().is_empty())
+        .unwrap_or_else(|| {
+            let clean = folder_name.trim().to_lowercase().replace(' ', "-");
+            if clean.ends_with(".test") {
+                clean
+            } else {
+                format!("{}.test", clean)
+            }
+        });
+
+    let domain = if !raw_domain.ends_with(".test") {
+        format!("{}.test", raw_domain.trim())
+    } else {
+        raw_domain.trim().to_string()
+    };
+
+    let is_secured = state.ssl.is_site_secured(&domain);
+    let framework = ConfigStore::detect_framework(&p);
+
+    let new_site = Site {
+        id: format!("site_{}", folder_name.to_lowercase().replace(' ', "-")),
+        name: folder_name,
+        domain,
+        path: path.clone(),
+        php_version: "default".to_string(),
+        secured: is_secured,
+        favorite: false,
+        framework,
+        created_at: chrono::Utc::now().to_rfc3339(),
+    };
+
+    {
+        let settings = state.settings.lock().map_err(|e| e.to_string())?;
+        let mut sites = state.sites.lock().map_err(|e| e.to_string())?;
+        sites.retain(|s| s.path != path);
+        sites.insert(0, new_site.clone());
+        state.config.save(&settings, &sites)?;
+        let _ = state.services.generate_vhost_config(&new_site, Some(&settings.active_php_version));
+        state.services.reload_nginx();
+    }
+
+    Ok(new_site)
+}
+
+#[tauri::command]
+pub fn unlink_site(id: String, state: State<'_, AppState>) -> Result<String, String> {
+    let settings = state.settings.lock().map_err(|e| e.to_string())?;
+    let mut sites = state.sites.lock().map_err(|e| e.to_string())?;
+    
+    if let Some(site) = sites.iter().find(|s| s.id == id).cloned() {
+        state.ssl.remove_site_certificate(&site.domain);
+        state.services.remove_vhost_config(&site.domain);
+        sites.retain(|s| s.id != id);
+        state.config.save(&settings, &sites)?;
+        state.services.reload_nginx();
+        Ok(format!("Unlinked site '{}'", site.name))
+    } else {
+        Err("Site not found".to_string())
+    }
+}
+
+#[tauri::command]
+pub fn delete_site(id: String, state: State<'_, AppState>) -> Result<String, String> {
+    let settings = state.settings.lock().map_err(|e| e.to_string())?;
+    let mut sites = state.sites.lock().map_err(|e| e.to_string())?;
+
+    if let Some(site) = sites.iter().find(|s| s.id == id).cloned() {
+        let p = PathBuf::from(&site.path);
+
+        // Strict safety checks before deleting any folder from disk
+        let canonical_target = p.canonicalize().unwrap_or_else(|_| p.clone());
+        if let Some(home) = dirs::home_dir() {
+            let canonical_home = home.canonicalize().unwrap_or(home);
+            if canonical_target == canonical_home {
+                return Err(format!("Cannot delete user home directory: {}", site.path));
+            }
+        }
+
+        if canonical_target.parent().is_none() || canonical_target == PathBuf::from("/") {
+            return Err(format!("Cannot delete root filesystem directory: {}", site.path));
+        }
+
+        // Clean up certificates and virtual host configuration
+        state.ssl.remove_site_certificate(&site.domain);
+        state.services.remove_vhost_config(&site.domain);
+
+        // Remove from tracked sites and persist configuration
+        sites.retain(|s| s.id != id);
+        state.config.save(&settings, &sites)?;
+        state.services.reload_nginx();
+
+        // Completely delete the folder from disk
+        if p.exists() {
+            if let Err(e) = std::fs::remove_dir_all(&p) {
+                // If remove_dir_all fails (e.g. read-only packfiles in .git), fall back to rm -rf
+                let rm_res = Command::new("rm").args(["-rf", &site.path]).output();
+                match rm_res {
+                    Ok(out) if out.status.success() => {},
+                    _ => return Err(format!("Site unlinked from Spark, but failed to delete folder '{}': {}", site.path, e)),
+                }
+            }
+        }
+
+        Ok(format!("Deleted site '{}' and removed folder '{}'", site.name, site.path))
+    } else {
+        Err("Site not found".to_string())
+    }
+}
+
+#[tauri::command]
+pub fn toggle_favorite(id: String, state: State<'_, AppState>) -> Result<bool, String> {
+    let settings = state.settings.lock().map_err(|e| e.to_string())?;
+    let mut sites = state.sites.lock().map_err(|e| e.to_string())?;
+
+    if let Some(site) = sites.iter_mut().find(|s| s.id == id) {
+        site.favorite = !site.favorite;
+        let new_val = site.favorite;
+        state.config.save(&settings, &sites)?;
+        Ok(new_val)
+    } else {
+        Err("Site not found".to_string())
+    }
+}
+
+#[tauri::command]
+pub fn toggle_https(id: String, state: State<'_, AppState>) -> Result<bool, String> {
+    let settings = state.settings.lock().map_err(|e| e.to_string())?;
+    let mut sites = state.sites.lock().map_err(|e| e.to_string())?;
+
+    if let Some(site) = sites.iter_mut().find(|s| s.id == id) {
+        if !site.secured {
+            state.ssl.generate_site_certificate(&site.domain)?;
+            site.secured = true;
+        } else {
+            state.ssl.remove_site_certificate(&site.domain);
+            site.secured = false;
+        }
+
+        let is_secured = site.secured;
+        let site_clone = site.clone();
+        state.config.save(&settings, &sites)?;
+        let _ = state.services.generate_vhost_config(&site_clone, Some(&settings.active_php_version));
+        state.services.reload_nginx();
+        Ok(is_secured)
+    } else {
+        Err("Site not found".to_string())
+    }
+}
+
+#[tauri::command]
+pub fn set_site_php_version(id: String, version: String, state: State<'_, AppState>) -> Result<String, String> {
+    let settings = state.settings.lock().map_err(|e| e.to_string())?;
+    let mut sites = state.sites.lock().map_err(|e| e.to_string())?;
+
+    if let Some(site) = sites.iter_mut().find(|s| s.id == id) {
+        site.php_version = version.clone();
+        let site_clone = site.clone();
+        state.config.save(&settings, &sites)?;
+        let _ = state.services.generate_vhost_config(&site_clone, Some(&settings.active_php_version));
+        state.services.reload_nginx();
+        Ok(version)
+    } else {
+        Err("Site not found".to_string())
+    }
+}
+
+#[tauri::command]
+pub fn open_in_browser(url: String) -> Result<(), String> {
+    Command::new("open")
+        .arg(&url)
+        .spawn()
+        .map_err(|e| format!("Failed to open URL in browser: {}", e))?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn open_in_ide(path: String, ide: Option<String>, state: State<'_, AppState>) -> Result<String, String> {
+    let target_ide = match ide {
+        Some(i) => i.to_lowercase(),
+        None => {
+            let settings = state.settings.lock().map_err(|e| e.to_string())?;
+            match settings.default_ide {
+                SupportedIde::Antigravity => "antigravity".to_string(),
+                SupportedIde::Vscode => "code".to_string(),
+                SupportedIde::Cursor => "cursor".to_string(),
+                SupportedIde::Zed => "zed".to_string(),
+            }
+        }
+    };
+
+    if target_ide == "antigravity" || target_ide == "agy" {
+        if let Ok(s) = Command::new("open").args(["-a", "Antigravity IDE", &path]).status() {
+            if s.success() {
+                return Ok("Opened in Antigravity IDE".to_string());
+            }
+        }
+        if let Ok(s) = Command::new("open").args(["-a", "Antigravity", &path]).status() {
+            if s.success() {
+                return Ok("Opened in Antigravity".to_string());
+            }
+        }
+    }
+
+    let app_name = match target_ide.as_str() {
+        "antigravity" | "agy" => "Antigravity IDE",
+        "vscode" | "code" => "Visual Studio Code",
+        "cursor" => "Cursor",
+        "zed" => "Zed",
+        _ => "Antigravity IDE",
+    };
+
+    let status = Command::new("open")
+        .args(["-a", app_name, &path])
+        .status();
+
+    match status {
+        Ok(s) if s.success() => Ok(format!("Opened in {}", app_name)),
+        _ => {
+            // Fallback to opening folder in Finder
+            let _ = Command::new("open").arg(&path).status();
+            Ok("Opened folder".to_string())
+        }
+    }
+}
+
+#[tauri::command]
+pub fn open_in_terminal(path: String) -> Result<(), String> {
+    // Try Ghostty, iTerm, or default Terminal
+    let apps = ["Ghostty", "iTerm", "Terminal"];
+    for app in apps {
+        if let Ok(st) = Command::new("open").args(["-a", app, &path]).status() {
+            if st.success() {
+                return Ok(());
+            }
+        }
+    }
+    let _ = Command::new("open").args(["-a", "Terminal", &path]).status();
+    Ok(())
+}
+
+#[tauri::command]
+pub fn get_php_versions() -> Vec<PhpVersionInfo> {
+    PhpManager::get_available_versions()
+}
+
+#[tauri::command]
+pub fn set_active_php_version(version: String, state: State<'_, AppState>) -> Result<String, String> {
+    let result = PhpManager::set_active_version(&version)?;
+    let mut settings = state.settings.lock().map_err(|e| e.to_string())?;
+    settings.active_php_version = version.clone();
+    let sites = state.sites.lock().map_err(|e| e.to_string())?;
+    state.config.save(&settings, &sites)?;
+    let _ = state.services.sync_vhosts(&sites, Some(&version));
+    Ok(result)
+}
+
+#[tauri::command]
+pub fn get_php_ini(version: String) -> PhpIniSettings {
+    PhpManager::get_ini_settings(&version)
+}
+
+#[tauri::command]
+pub fn update_php_ini(version: String, settings: PhpIniSettings) -> Result<String, String> {
+    PhpManager::update_ini_settings(&version, &settings)
+}
+
+#[tauri::command]
+pub async fn check_php_patch_updates(version: String) -> Result<String, String> {
+    PhpManager::check_patch_updates(&version).await
+}
+
+#[tauri::command]
+pub async fn install_php_version(version: String) -> Result<String, String> {
+    tokio::task::spawn_blocking(move || {
+        PhpManager::install_version(&version)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn uninstall_php_version(version: String, state: State<'_, AppState>) -> Result<String, String> {
+    let ver = version.clone();
+    let res = tokio::task::spawn_blocking(move || {
+        PhpManager::uninstall_version(&ver)
+    })
+    .await
+    .map_err(|e| e.to_string())??;
+
+    if let Ok(mut settings) = state.settings.lock() {
+        if settings.active_php_version.starts_with(&version) {
+            let available = PhpManager::get_available_versions();
+            if let Some(other) = available.iter().find(|v| v.is_installed && !v.version.starts_with(&version)) {
+                settings.active_php_version = other.version.clone();
+                let _ = PhpManager::set_active_version(&other.version);
+            }
+        }
+    }
+    Ok(res)
+}
+
+#[tauri::command]
+pub fn get_node_versions() -> Vec<NodeVersionInfo> {
+    NodeManager::get_available_versions()
+}
+
+#[tauri::command]
+pub fn set_active_node_version(version: String, state: State<'_, AppState>) -> Result<String, String> {
+    let mut settings = state.settings.lock().map_err(|e| e.to_string())?;
+    settings.active_node_version = version.clone();
+    let sites = state.sites.lock().map_err(|e| e.to_string())?;
+    state.config.save(&settings, &sites)?;
+    let _ = NodeManager::set_active_version(&version);
+    Ok(format!("Active Node.js set to {}", version))
+}
+
+#[tauri::command]
+pub async fn install_node_version(version: String) -> Result<String, String> {
+    tokio::task::spawn_blocking(move || {
+        NodeManager::install_version(&version)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn uninstall_node_version(version: String, state: State<'_, AppState>) -> Result<String, String> {
+    let ver = version.clone();
+    let res = tokio::task::spawn_blocking(move || {
+        NodeManager::uninstall_version(&ver)
+    })
+    .await
+    .map_err(|e| e.to_string())??;
+
+    if let Ok(mut settings) = state.settings.lock() {
+        if settings.active_node_version.contains(&version) {
+            let available = NodeManager::get_available_versions();
+            if let Some(other) = available.iter().find(|v| v.is_installed && !v.version.contains(&version)) {
+                settings.active_node_version = other.version.clone();
+                let _ = NodeManager::set_active_version(&other.version);
+            }
+        }
+    }
+    Ok(res)
+}
+
+#[tauri::command]
+pub fn get_package_managers() -> PackageManagersState {
+    NodeManager::get_package_managers_state()
+}
+
+#[tauri::command]
+pub fn toggle_package_manager(manager: String, enable: bool) -> Result<String, String> {
+    NodeManager::toggle_package_manager(&manager, enable)
+}
+
+#[tauri::command]
+pub fn get_mysql_status(state: State<'_, AppState>) -> MysqlStatus {
+    state.mysql.get_status()
+}
+
+#[tauri::command]
+pub fn start_mysql(state: State<'_, AppState>) -> Result<String, String> {
+    state.mysql.start()
+}
+
+#[tauri::command]
+pub fn stop_mysql(state: State<'_, AppState>) -> Result<String, String> {
+    state.mysql.stop()
+}
+
+#[tauri::command]
+pub fn restart_mysql(state: State<'_, AppState>) -> Result<String, String> {
+    state.mysql.restart()
+}
+
+#[tauri::command]
+pub fn list_databases(state: State<'_, AppState>) -> Vec<DatabaseInfo> {
+    state.mysql.list_databases()
+}
+
+#[tauri::command]
+pub fn create_database(name: String, collation: String, state: State<'_, AppState>) -> Result<String, String> {
+    state.mysql.create_database(&name, &collation)
+}
+
+#[tauri::command]
+pub fn drop_database(name: String, state: State<'_, AppState>) -> Result<String, String> {
+    state.mysql.drop_database(&name)
+}
+
+#[tauri::command]
+pub fn open_database_client(database: Option<String>, state: State<'_, AppState>) -> Result<String, String> {
+    state.mysql.open_client(database.as_deref())
+}
+
+#[tauri::command]
+pub fn setup_root_ca(state: State<'_, AppState>) -> Result<String, String> {
+    let res = state.ssl.trust_root_ca_in_keychain()?;
+    let mut settings = state.settings.lock().map_err(|e| e.to_string())?;
+    settings.root_ca_installed = true;
+    let sites = state.sites.lock().map_err(|e| e.to_string())?;
+    state.config.save(&settings, &sites)?;
+    Ok(res)
+}
+
+#[tauri::command]
+pub fn setup_dns_resolver(state: State<'_, AppState>) -> Result<String, String> {
+    let res = DnsResolverManager::configure_resolver()?;
+    let mut settings = state.settings.lock().map_err(|e| e.to_string())?;
+    settings.dns_resolver_configured = true;
+    let sites = state.sites.lock().map_err(|e| e.to_string())?;
+    state.config.save(&settings, &sites)?;
+    Ok(res)
+}
+
+#[tauri::command]
+pub fn get_service_health(state: State<'_, AppState>) -> ServiceHealth {
+    state.services.get_service_health()
+}
+
+#[tauri::command]
+pub fn start_all_services(state: State<'_, AppState>) -> Result<String, String> {
+    state.services.start_all()
+}
+
+#[tauri::command]
+pub fn stop_all_services(state: State<'_, AppState>) -> Result<String, String> {
+    state.services.stop_all()
+}
+
+#[tauri::command]
+pub async fn pick_folder() -> Result<Option<String>, String> {
+    let result = tokio::task::spawn_blocking(|| {
+        rfd::FileDialog::new()
+            .set_title("Select PHP / Laravel Project Directory")
+            .pick_folder()
+            .map(|p| p.to_string_lossy().to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+
+    Ok(result)
+}
+
+#[tauri::command]
+pub fn restart_all_services(state: State<'_, AppState>) -> Result<String, String> {
+    state.services.restart_all()
+}
+
+#[tauri::command]
+pub fn get_dependencies() -> Vec<DependencyItem> {
+    DependencyManager::check_dependencies()
+}
+
+#[tauri::command]
+pub async fn install_dependency(id: String, app: AppHandle) -> Result<String, String> {
+    tokio::task::spawn_blocking(move || {
+        DependencyManager::install_dependency(&id, Some(&app))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn uninstall_dependency(id: String, app: AppHandle) -> Result<String, String> {
+    tokio::task::spawn_blocking(move || {
+        DependencyManager::uninstall_dependency(&id, Some(&app))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn install_all_missing_dependencies(app: AppHandle) -> Result<String, String> {
+    tokio::task::spawn_blocking(move || {
+        DependencyManager::install_all_missing(Some(&app))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub fn is_first_run_needed() -> bool {
+    DependencyManager::is_first_run_needed()
+}
+
+#[tauri::command]
+pub fn check_passwordless_sudo() -> bool {
+    crate::privilege::PrivilegeManager::is_passwordless_sudo_configured()
+}
+
+#[tauri::command]
+pub fn enable_passwordless_sudo(state: State<'_, AppState>) -> Result<String, String> {
+    let res = crate::privilege::PrivilegeManager::enable_passwordless_sudo()?;
+    let mut settings = state.settings.lock().map_err(|e| e.to_string())?;
+    settings.passwordless_sudo = true;
+    let sites = state.sites.lock().map_err(|e| e.to_string())?;
+    let _ = state.config.save(&settings, &sites);
+    Ok(res)
+}
+
+#[tauri::command]
+pub fn disable_passwordless_sudo(state: State<'_, AppState>) -> Result<String, String> {
+    let res = crate::privilege::PrivilegeManager::disable_passwordless_sudo()?;
+    let mut settings = state.settings.lock().map_err(|e| e.to_string())?;
+    settings.passwordless_sudo = false;
+    let sites = state.sites.lock().map_err(|e| e.to_string())?;
+    let _ = state.config.save(&settings, &sites);
+    Ok(res)
+}

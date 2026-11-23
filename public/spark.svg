@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+  <defs>
+    <linearGradient id="sparkRedGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FF5757" />
+      <stop offset="50%" stop-color="#EF4444" />
+      <stop offset="100%" stop-color="#B91C1C" />
+    </linearGradient>
+    <linearGradient id="sparkBgGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#221619" />
+      <stop offset="100%" stop-color="#120c0e" />
+    </linearGradient>
+  </defs>
+  <rect x="4" y="4" width="92" height="92" rx="22" fill="url(#sparkBgGrad)" stroke="#EF4444" stroke-opacity="0.4" stroke-width="2"/>
+  <text x="50" y="71" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif" font-size="66" font-weight="900" text-anchor="middle" fill="url(#sparkRedGrad)">S</text>
+  <circle cx="78" cy="22" r="4.5" fill="#F87171" />
+</svg>
