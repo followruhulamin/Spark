@@ -268,16 +268,22 @@ for a in assets:
       # Sign app.tar.gz bundle with Minisign for Tauri v2 updater
       SIGNATURE=""
       KEY_PATH="$HOME/.tauri/spark.key"
-      if [ -f "$KEY_PATH" ]; then
-        echo -e "${BLUE}Signing $TAR_NAME with $KEY_PATH...${NC}"
-        npx tauri signer sign -f "$KEY_PATH" "$BUNDLE_DIR/$TAR_NAME" -p "" --app-version "${CLEAN_VERSION}" 2>/dev/null || true
-        if [ -f "$BUNDLE_DIR/${TAR_NAME}.sig" ]; then
-          SIGNATURE=$(cat "$BUNDLE_DIR/${TAR_NAME}.sig" | tr -d '\n' | tr -d '\r')
-          echo -e "${GREEN}✓ Generated minisign signature for in-app updater manifest${NC}"
-        fi
-        # Also sign zip for manual verifiers
-        npx tauri signer sign -f "$KEY_PATH" "$BUNDLE_DIR/$ZIP_NAME" -p "" --app-version "${CLEAN_VERSION}" 2>/dev/null || true
+      if [ ! -f "$KEY_PATH" ]; then
+        echo -e "${RED}Error: Signing key not found at $KEY_PATH. Run 'npx tauri signer generate -w ~/.tauri/spark.key --ci' first.${NC}"
+        exit 1
       fi
+      echo -e "${BLUE}Signing $TAR_NAME with $KEY_PATH...${NC}"
+      npx tauri signer sign -f "$KEY_PATH" "$BUNDLE_DIR/$TAR_NAME" -p "" --app-version "${CLEAN_VERSION}"
+      if [ -f "$BUNDLE_DIR/${TAR_NAME}.sig" ]; then
+        SIGNATURE=$(cat "$BUNDLE_DIR/${TAR_NAME}.sig" | tr -d '\n' | tr -d '\r')
+        echo -e "${GREEN}✓ Generated minisign signature for in-app updater manifest${NC}"
+      fi
+      if [ -z "$SIGNATURE" ]; then
+        echo -e "${RED}Error: Failed to generate minisign signature for $TAR_NAME. Aborting latest.json upload.${NC}"
+        exit 1
+      fi
+      # Also sign zip for manual verifiers
+      npx tauri signer sign -f "$KEY_PATH" "$BUNDLE_DIR/$ZIP_NAME" -p "" --app-version "${CLEAN_VERSION}" || true
 
       # Generate and upload latest.json updater manifest for Tauri
       echo -e "\n${BLUE}Generating and uploading latest.json updater manifest...${NC}"
