@@ -235,6 +235,51 @@ for a in assets:
       else
         echo -e "${YELLOW}Uploaded asset. Response state: $UPLOAD_STATE${NC}"
       fi
+
+      # Generate and upload latest.json updater manifest for Tauri
+      echo -e "\n${BLUE}Generating and uploading latest.json updater manifest...${NC}"
+      PUB_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+      LATEST_JSON_PATH="$BUNDLE_DIR/latest.json"
+      cat <<EOF > "$LATEST_JSON_PATH"
+{
+  "version": "${CLEAN_VERSION}",
+  "notes": "Spark ${TAG_NAME} release",
+  "pub_date": "${PUB_DATE}",
+  "platforms": {
+    "darwin-aarch64": {
+      "signature": "",
+      "url": "https://github.com/followruhulamin/Spark/releases/download/${TAG_NAME}/${ZIP_NAME}"
+    },
+    "darwin-x86_64": {
+      "signature": "",
+      "url": "https://github.com/followruhulamin/Spark/releases/download/${TAG_NAME}/${ZIP_NAME}"
+    }
+  }
+}
+EOF
+
+      EXISTING_LATEST_ID=$(echo "$RELEASE_DATA" | python3 -c "
+import sys, json
+assets = json.load(sys.stdin).get('assets', [])
+for a in assets:
+    if a.get('name') == 'latest.json':
+        print(a.get('id', ''))
+        break
+" 2>/dev/null || true)
+
+      if [ -n "$EXISTING_LATEST_ID" ] && [ "$EXISTING_LATEST_ID" != "None" ]; then
+        echo -e "${YELLOW}Deleting existing latest.json (ID: $EXISTING_LATEST_ID) to overwrite...${NC}"
+        curl -s -X DELETE \
+          -H "Authorization: token $GH_TOKEN" \
+          "https://api.github.com/repos/followruhulamin/Spark/releases/assets/${EXISTING_LATEST_ID}" >/dev/null
+      fi
+
+      curl -s -X POST \
+        -H "Authorization: token $GH_TOKEN" \
+        -H "Content-Type: application/json" \
+        --data-binary @"$LATEST_JSON_PATH" \
+        "https://uploads.github.com/repos/followruhulamin/Spark/releases/${RELEASE_ID}/assets?name=latest.json" >/dev/null
+      echo -e "${GREEN}${BOLD}✓ Successfully uploaded latest.json updater manifest to GitHub Release!${NC}"
     else
       echo -e "${RED}Warning: Could not create release via API. Upload manually at:${NC}"
       echo -e "https://github.com/followruhulamin/Spark/releases/new?tag=${TAG_NAME}"
