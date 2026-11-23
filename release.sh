@@ -23,7 +23,20 @@ echo -e "${BOLD}${BLUE}⚡ Spark Release Automation${NC}\n"
 CURRENT_VERSION=$(node -p "require('./package.json').version")
 echo -e "Current version: ${YELLOW}${CURRENT_VERSION}${NC}"
 
-TARGET_VERSION="${1:-}"
+AUTO_CONFIRM=false
+for arg in "$@"; do
+  if [ "$arg" = "-y" ] || [ "$arg" = "--yes" ]; then
+    AUTO_CONFIRM=true
+  fi
+done
+
+TARGET_VERSION=""
+for arg in "$@"; do
+  if [ "$arg" != "-y" ] && [ "$arg" != "--yes" ]; then
+    TARGET_VERSION="$arg"
+    break
+  fi
+done
 
 if [ -z "$TARGET_VERSION" ]; then
   # Suggest next patch version
@@ -98,8 +111,12 @@ git tag -a "${TAG_NAME}" -m "Release ${TAG_NAME}"
 echo -e "${GREEN}✓ Created git tag: ${TAG_NAME}${NC}\n"
 
 # 6. Push to GitHub
-echo -e "${YELLOW}Ready to push ${TAG_NAME} and main branch to GitHub? (y/n)${NC}"
-read -r -p "> " confirm
+if [ "$AUTO_CONFIRM" = true ]; then
+  confirm="y"
+else
+  echo -e "${YELLOW}Ready to push ${TAG_NAME} and main branch to GitHub? (y/n)${NC}"
+  read -r -p "> " confirm
+fi
 if [[ "$confirm" =~ ^[Yy]$ ]]; then
   echo -e "\n${BLUE}Pushing to GitHub...${NC}"
   git push origin main
