@@ -1,27 +1,25 @@
-# ⚡ Spark v0.1.2 — Bug Fixes & Service Resilience
+# ⚡ Spark v0.1.3 — Production App 502 Fix & Manual Download
 
-This release fixes the `502 Bad Gateway` error on PHP sites, adds self-healing FastCGI pool management, and ensures background PHP-FPM daemons automatically start and configure upon app launch.
+This release resolves the production `502 Bad Gateway` error in standalone macOS app bundles, prevents PHP version pool config collisions, and introduces a direct "Download Manually (.zip)" option in the update dialog.
 
 ---
 
-## 🛠️ What's Fixed & Improved in v0.1.2
+## 🛠️ What's Fixed & Improved in v0.1.3
 
-### 🔌 PHP-FPM FastCGI Socket Auto-Configuration (Fixes 502 Bad Gateway)
-- **Automatic Pool Alignment**: Spark now automatically inspects installed PHP versions and configures their FastCGI pools (`www.conf`) to listen on `/tmp/spark-php{version}.sock`.
-- **Dynamic User Permissions**: Socket ownership and permissions (`listen.owner`, `listen.group`, `listen.mode`) are now dynamically assigned using the active macOS user instead of hardcoded paths.
-- **Legacy Socket Bridging**: Bi-directional symlinks are automatically established between `/tmp/localdev-php*.sock` and `/tmp/spark-php*.sock` to ensure zero downtime or broken upstream references.
+### 🖥️ Standalone macOS App CLI Environment (Fixes Production 502)
+- **Automatic GUI PATH Initialization**: macOS GUI apps launched from Finder/Dock run in a restricted environment without shell PATH. Spark now automatically injects `/opt/homebrew/bin`, `/opt/homebrew/sbin`, `/usr/local/bin`, and runtime bin directories on startup so `brew`, `nginx`, and `php-fpm` work seamlessly in production.
+- **Strict PHP Version Isolation**: Fixed a bug where shared config symlinks in Homebrew caused PHP 8.4's socket to be overwritten by subsequent versions during startup scans. Each version is now strictly isolated to its own `/tmp/spark-php{ver}.sock`.
 
-### ⚙️ Self-Healing Service & Daemon Lifecycle
-- **Automated Daemon Startup**: Spark now validates and activates background PHP-FPM daemons alongside Nginx and MySQL immediately when the desktop app launches.
-- **Service Restart Hook**: Clicking "Restart" in the footer now reloads PHP-FPM (`killall -USR2 php-fpm`), Nginx, and MySQL in a single unified operation.
+### 📦 Manual Download Option for Updates
+- **1-Click Manual Zip Download**: Added a "Download Manually (.zip)" button in the Software Update modal and Settings tab, allowing instant direct zip downloads in your browser whenever preferred.
 
-### 🧹 Clean-First Release Packaging
-- **Zero-Cache Bundling**: The automated release builder cleans previous bundle directories and validates `CFBundleShortVersionString` in `Info.plist` before generating the distribution zip.
+### 🔐 Cryptographic Minisign Verification
+- **Automated Signature Injection**: Releases are automatically signed with your Minisign key and paired with verified signatures in `latest.json` for error-free in-app auto-updating.
 
 ---
 
 ## 📦 Downloads & Verification
 
-- **Version**: `v0.1.2`
+- **Version**: `v0.1.3`
 - **Platform**: macOS 12.0+ (Apple Silicon `arm64` & Intel `x86_64`)
 - **Bundle**: `Spark.app`
