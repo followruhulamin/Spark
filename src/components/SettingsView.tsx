@@ -93,7 +93,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   dependencyLogs,
   isInstallingDependency,
   activeInstallingId,
-  appVersion = '0.1.0',
   onInstallPhpVersion,
   onUninstallPhpVersion,
   onInstallNodeVersion,
@@ -183,7 +182,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               onSetupDns={onSetupDns}
               onEnablePasswordlessSudo={onEnablePasswordlessSudo}
               onDisablePasswordlessSudo={onDisablePasswordlessSudo}
-              appVersion={appVersion}
             />
           )}
 

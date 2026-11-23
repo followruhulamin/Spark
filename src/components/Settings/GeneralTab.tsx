@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { SparkLogo } from '../SparkLogo';
 import { Folder, Plus, Minus, ShieldCheck, Globe, Check, Loader2, KeyRound } from 'lucide-react';
 import { AppSettings, SupportedIde } from '../../types';
 
@@ -20,7 +19,6 @@ export const GeneralTab: React.FC<GeneralTabProps> = ({
   onSetupDns,
   onEnablePasswordlessSudo,
   onDisablePasswordlessSudo,
-  appVersion = '0.1.0',
 }) => {
   const [newPathInput, setNewPathInput] = useState('');
   const [caLoading, setCaLoading] = useState(false);
@@ -391,35 +389,6 @@ export const GeneralTab: React.FC<GeneralTabProps> = ({
             {sudoMessage}
           </p>
         )}
-      </div>
-
-      {/* App Version & System Info */}
-      <div className="p-4 rounded-xl bg-white/[0.03] border border-white/[0.08] space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <SparkLogo size={32} />
-            <div>
-              <div className="text-xs font-semibold text-white flex items-center space-x-2">
-                <span>Spark Engine</span>
-                <span className="text-[10px] font-mono text-rose-400 bg-rose-500/10 px-1.5 py-0.5 rounded border border-rose-500/20">
-                  v{appVersion}
-                </span>
-              </div>
-              <div className="text-[11px] text-white/50 mt-0.5">
-                Native macOS Local PHP/Laravel Development Environment (Rust & Tauri v2)
-              </div>
-            </div>
-          </div>
-          <span className="text-[10px] font-medium text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
-            Development Mode
-          </span>
-        </div>
-        <div className="grid grid-cols-2 gap-2 pt-2 border-t border-white/[0.06] text-[11px] font-mono text-white/60">
-          <div>Architecture: <span className="text-white/80">Apple Silicon (arm64)</span></div>
-          <div>Frontend: <span className="text-white/80">React 19 + Tailwind</span></div>
-          <div>Backend: <span className="text-white/80">Rust 2021 + Tauri v2</span></div>
-          <div>Status: <span className="text-emerald-400">Up to date</span></div>
-        </div>
       </div>
     </div>
   );
