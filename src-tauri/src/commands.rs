@@ -765,19 +765,21 @@ pub async fn run_initial_setup(
         }
 
         // Step 6: Configure and restart services
-        DependencyManager::emit_log(Some(&app), "services", "Configuring Spark Nginx virtual hosts & Dnsmasq...".to_string(), false, false);
-        let spark_nginx = home.join("Library/Application Support/Spark/nginx");
-        let _ = std::fs::create_dir_all(&spark_nginx);
+        DependencyManager::emit_log(Some(&app), "services", "Configuring Spark Nginx virtual hosts, PHP-FPM & Dnsmasq...".to_string(), false, false);
+        state.services.ensure_nginx_spark_include();
 
-        let servers_dir = PathBuf::from("/opt/homebrew/etc/nginx/servers");
-        if servers_dir.exists() {
-            let conf_file = servers_dir.join("spark.conf");
-            let conf_content = format!("include \"{}/*.conf\";\n", spark_nginx.display());
-            let _ = std::fs::write(&conf_file, conf_content);
+        if let Err(err) = DnsResolverManager::ensure_dnsmasq_configured_and_running() {
+            DependencyManager::emit_log(Some(&app), "services", format!("Dnsmasq note: {}", err), false, false);
         }
 
+        crate::php_manager::PhpManager::ensure_all_fpm_configured_and_running();
         let _ = Command::new("brew").args(["services", "restart", "nginx"]).output();
-        let _ = Command::new("brew").args(["services", "restart", "dnsmasq"]).output();
+        state.services.ensure_nginx_running();
+
+        let current_sites = state.sites.lock().map(|s| s.clone()).unwrap_or_default();
+        let active_php = state.settings.lock().map(|s| s.active_php_version.clone()).unwrap_or_else(|_| "8.4".to_string());
+        let _ = state.services.sync_vhosts(&current_sites, Some(&active_php));
+
         DependencyManager::emit_log(Some(&app), "services", "Background daemons active and ready".to_string(), false, true);
 
         // Step 7: Update and save settings

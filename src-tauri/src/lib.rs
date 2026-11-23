@@ -94,6 +94,9 @@ pub fn run() {
         if !dns::DnsResolverManager::is_resolver_configured() {
             let _ = dns::DnsResolverManager::configure_resolver();
         }
+        if !dns::DnsResolverManager::is_dnsmasq_configured() || !dns::DnsResolverManager::is_dnsmasq_running() {
+            let _ = dns::DnsResolverManager::ensure_dnsmasq_configured_and_running();
+        }
     }
 
     let scanned_sites = config_store.scan_project_paths(

@@ -329,6 +329,7 @@ impl PhpManager {
     /// to listen on /tmp/spark-php{version}.sock, and ensures background php-fpm services are active.
     pub fn ensure_all_fpm_configured_and_running() {
         let current_user = std::env::var("USER").unwrap_or_else(|_| "ruhulamin".to_string());
+        let prefix = crate::dns::DnsResolverManager::homebrew_prefix();
         let major_versions = ["8.6", "8.5", "8.4", "8.3", "8.2", "8.1"];
 
         for ver in major_versions {
@@ -336,9 +337,9 @@ impl PhpManager {
             let socket = format!("/tmp/spark-php{}.sock", ver_clean);
             let legacy_socket = format!("/tmp/localdev-php{}.sock", ver_clean);
 
-            let php_etc_dir = PathBuf::from(format!("/opt/homebrew/etc/php/{}", ver));
-            let brew_bin = PathBuf::from(format!("/opt/homebrew/opt/php@{}/bin/php", ver));
-            let default_brew_bin = PathBuf::from("/opt/homebrew/opt/php/bin/php");
+            let php_etc_dir = PathBuf::from(format!("{}/etc/php/{}", prefix, ver));
+            let brew_bin = PathBuf::from(format!("{}/opt/php@{}/bin/php", prefix, ver));
+            let default_brew_bin = PathBuf::from(format!("{}/opt/php/bin/php", prefix));
             let is_installed = brew_bin.exists()
                 || (ver == "8.6" && default_brew_bin.exists())
                 || php_etc_dir.exists();

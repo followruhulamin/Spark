@@ -76,7 +76,7 @@ export function App() {
     yarn: false,
   });
   const [serviceHealth, setServiceHealth] = useState<ServiceHealth>(defaultServiceHealth);
-  const [appVersion, setAppVersion] = useState<string>('0.1.4');
+  const [appVersion, setAppVersion] = useState<string>('0.1.5');
 
   const [searchQuery, setSearchQuery] = useState('');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -838,6 +838,26 @@ export function App() {
         logs={dependencyLogs}
         isInstalling={isInstallingDependency}
         activeInstallingId={activeInstallingId}
+        settings={settings}
+        onUpdateSettings={handleUpdateSettings}
+        onRunInitialSetup={async (opts) => {
+          setIsInstallingDependency(true);
+          setDependencyLogs([]);
+          try {
+            const res = await invoke<string>('run_initial_setup', {
+              enablePasswordlessSudo: opts.enableSudo,
+              defaultIde: opts.defaultIde,
+            });
+            await loadDependencies();
+            await loadAppState();
+            return res;
+          } finally {
+            setIsInstallingDependency(false);
+          }
+        }}
+        onSetupRootCa={() => invoke<string>('setup_root_ca')}
+        onSetupDns={() => invoke<string>('setup_dns_resolver')}
+        onEnablePasswordlessSudo={() => invoke<string>('enable_passwordless_sudo')}
       />
 
       {/* Software Update Modal */}

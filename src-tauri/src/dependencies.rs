@@ -369,19 +369,12 @@ impl DependencyManager {
             "nginx" => {
                 Self::emit_log(app, id, "Running brew install nginx...".to_string(), false, false);
                 let _ = Command::new("brew").args(["install", "nginx"]).output();
-                
-                // Configure Spark include directive
-                let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("/Users/ruhulamin"));
-                let spark_nginx = home.join("Library/Application Support/Spark/nginx");
-                let _ = fs::create_dir_all(&spark_nginx);
 
-                let servers_dir = PathBuf::from("/opt/homebrew/etc/nginx/servers");
-                let _ = fs::create_dir_all(&servers_dir);
-                let conf_file = servers_dir.join("spark.conf");
-                let conf_content = format!("include \"{}/*.conf\";\n", spark_nginx.display());
-                let _ = fs::write(&conf_file, conf_content);
-
+                let svc = crate::services::ServiceManager::new();
+                svc.ensure_nginx_spark_include();
                 let _ = Command::new("brew").args(["services", "restart", "nginx"]).output();
+                svc.ensure_nginx_running();
+
                 Self::emit_log(app, id, "Nginx installed and configured successfully".to_string(), false, true);
                 Ok("Nginx web server ready".to_string())
             }
@@ -390,17 +383,9 @@ impl DependencyManager {
                 Self::emit_log(app, id, "Running brew install dnsmasq...".to_string(), false, false);
                 let _ = Command::new("brew").args(["install", "dnsmasq"]).output();
 
-                let dnsmasq_conf_dir = PathBuf::from("/opt/homebrew/etc/dnsmasq.d");
-                let _ = fs::create_dir_all(&dnsmasq_conf_dir);
-                let conf_file = dnsmasq_conf_dir.join("spark.conf");
-                let conf_content = "address=/test/127.0.0.1\nlisten-address=127.0.0.1\n";
-                let _ = fs::write(&conf_file, conf_content);
-
-                // Configure resolver
+                // Configure resolver & dnsmasq.conf + spark.conf and start as root
                 let _ = DnsResolverManager::configure_resolver();
-
-                // Start service
-                let _ = crate::privilege::PrivilegeManager::run_privileged("/bin/launchctl load -w /Library/LaunchDaemons/sh.brew.dnsmasq.plist 2>/dev/null || /opt/homebrew/sbin/dnsmasq");
+                let _ = DnsResolverManager::ensure_dnsmasq_configured_and_running();
 
                 Self::emit_log(app, id, "Dnsmasq daemon installed and routing *.test".to_string(), false, true);
                 Ok("Dnsmasq DNS server ready".to_string())
@@ -425,7 +410,8 @@ impl DependencyManager {
                 let _ = Command::new("brew").args(["install", "php@8.5"]).output();
 
                 // Configure FPM pool socket
-                let www_conf = PathBuf::from("/opt/homebrew/etc/php/8.5/php-fpm.d/www.conf");
+                let prefix = DnsResolverManager::homebrew_prefix();
+                let www_conf = PathBuf::from(format!("{}/etc/php/8.5/php-fpm.d/www.conf", prefix));
                 let current_user = std::env::var("USER").unwrap_or_else(|_| "ruhulamin".to_string());
                 if www_conf.exists() {
                     let _ = Command::new("sed").args(["-i", "", "s|^listen = .*|listen = /tmp/spark-php85.sock|", &www_conf.to_string_lossy()]).output();
@@ -444,7 +430,8 @@ impl DependencyManager {
                 let _ = Command::new("brew").args(["install", "php@8.4"]).output();
 
                 // Configure FPM pool socket
-                let www_conf = PathBuf::from("/opt/homebrew/etc/php/8.4/php-fpm.d/www.conf");
+                let prefix = DnsResolverManager::homebrew_prefix();
+                let www_conf = PathBuf::from(format!("{}/etc/php/8.4/php-fpm.d/www.conf", prefix));
                 let current_user = std::env::var("USER").unwrap_or_else(|_| "ruhulamin".to_string());
                 if www_conf.exists() {
                     let _ = Command::new("sed").args(["-i", "", "s|^listen = .*|listen = /tmp/spark-php84.sock|", &www_conf.to_string_lossy()]).output();

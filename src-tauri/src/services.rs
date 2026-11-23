@@ -69,7 +69,36 @@ impl ServiceManager {
         false
     }
 
+    pub fn nginx_bin() -> &'static str {
+        if Path::new("/opt/homebrew/bin/nginx").exists() {
+            "/opt/homebrew/bin/nginx"
+        } else if Path::new("/usr/local/bin/nginx").exists() {
+            "/usr/local/bin/nginx"
+        } else {
+            "nginx"
+        }
+    }
+
+    /// Ensures Homebrew's nginx `servers/spark.conf` includes Spark's vhost directory.
+    /// Returns true if `spark.conf` was created or updated.
+    pub fn ensure_nginx_spark_include(&self) -> bool {
+        let prefix = DnsResolverManager::homebrew_prefix();
+        let servers_dir = PathBuf::from(format!("{}/etc/nginx/servers", prefix));
+        if !servers_dir.exists() && fs::create_dir_all(&servers_dir).is_err() {
+            return false;
+        }
+        let conf_file = servers_dir.join("spark.conf");
+        let expected = format!("include \"{}/*.conf\";\n", self.nginx_conf_dir.display());
+        let current = fs::read_to_string(&conf_file).unwrap_or_default();
+        if current != expected {
+            return fs::write(&conf_file, expected).is_ok();
+        }
+        false
+    }
+
     pub fn sync_vhosts(&self, sites: &[Site], default_php: Option<&str>) -> Result<(), String> {
+        self.ensure_nginx_spark_include();
+
         // Clean up orphaned .conf files from previously deleted sites
         let active_configs: std::collections::HashSet<String> = sites
             .iter()
@@ -229,16 +258,13 @@ server {{
 
     pub fn ensure_nginx_running(&self) {
         crate::php_manager::PhpManager::ensure_all_fpm_configured_and_running();
+        let include_updated = self.ensure_nginx_spark_include();
         if !self.is_nginx_running() {
-            let nginx_bin = if Path::new("/opt/homebrew/bin/nginx").exists() {
-                "/opt/homebrew/bin/nginx"
-            } else if Path::new("/usr/local/bin/nginx").exists() {
-                "/usr/local/bin/nginx"
-            } else {
-                "nginx"
-            };
+            let nginx_bin = Self::nginx_bin();
             let _ = Command::new(nginx_bin).output();
             let _ = Command::new("brew").args(["services", "start", "nginx"]).output();
+        } else if include_updated {
+            self.reload_nginx();
         }
     }
 
@@ -247,7 +273,7 @@ server {{
             self.ensure_nginx_running();
             return;
         }
-        let _ = Command::new("nginx").args(["-s", "reload"]).output();
+        let _ = Command::new(Self::nginx_bin()).args(["-s", "reload"]).output();
         let _ = Command::new("killall").args(["-HUP", "nginx-arm64"]).output();
     }
 
@@ -260,7 +286,7 @@ server {{
 
     pub fn stop_all(&self) -> Result<String, String> {
         let _ = self.mysql.stop();
-        let _ = Command::new("nginx").args(["-s", "stop"]).output();
+        let _ = Command::new(Self::nginx_bin()).args(["-s", "stop"]).output();
         let _ = Command::new("brew").args(["services", "stop", "nginx"]).output();
         Ok("Background services stopped".to_string())
     }
@@ -270,7 +296,7 @@ server {{
         crate::php_manager::PhpManager::ensure_all_fpm_configured_and_running();
         let _ = Command::new("killall").args(["-USR2", "php-fpm"]).output();
         if self.is_nginx_running() {
-            let _ = Command::new("nginx").args(["-s", "reload"]).output();
+            let _ = Command::new(Self::nginx_bin()).args(["-s", "reload"]).output();
         } else {
             self.ensure_nginx_running();
         }

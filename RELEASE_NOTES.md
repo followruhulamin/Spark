@@ -1,24 +1,21 @@
-# ⚡ Spark v0.1.4 — Move Site Feature & Enhanced In-App Updater
+# ⚡ Spark v0.1.5 — First-Time Setup & Local Routing Fixes
 
-This release introduces the **Move Site** feature to easily migrate any site folder to a new location on disk, alongside improvements to the in-app updater and release pipeline.
+This release fixes first-time macOS installation issues where `.test` websites failed to load out of the box, ensuring seamless DNS resolution, Nginx virtual host routing, and PHP-FPM socket configuration on both Apple Silicon and Intel Macs.
 
 ---
 
-## 🛠️ What's New & Improved in v0.1.4
+## 🛠️ What's Fixed & Improved in v0.1.5
 
-### 📁 Move Site via Three-Dot Menu
-- **Interactive Move Modal**: Added a "Move Site" option to each site's three-dot (`•••`) menu. Select a new destination directory using the native macOS folder picker (`pick_folder`) with real-time target path preview.
-- **Cross-Volume Migration Support**: Uses standard filesystem rename with an automatic fallback to macOS `ditto` + clean removal to safely handle moves across different disk mounts and external drives.
-- **Automatic Nginx Virtual Host Sync**: Automatically updates the Nginx vhost config (`<domain>.conf`) with the new root directory and reloads Nginx (`nginx -s reload`) without requiring domain re-creation or downtime.
-
-### ⚡ Updater & Release Pipeline
-- **Cryptographic Minisign Signatures**: Automatically signs release archives with Minisign and generates the `latest.json` updater manifest for error-free in-app auto-updates.
-- **Clean Bundle Compilation**: Ensures stale binaries or cached UI assets are cleared before packaging production releases.
+### 🌐 Reliable First-Time `.test` Website Loading
+- **Complete Onboarding Setup Wiring**: Connected `DependencySetupModal` to `run_initial_setup`, `setup_root_ca`, `setup_dns_resolver`, `enable_passwordless_sudo`, and settings persistence so Quick Auto-Setup configures the entire stack in one click.
+- **Dnsmasq `conf-dir` & Privileged Port 53 Startup**: Automatically enables `conf-dir=<prefix>/etc/dnsmasq.d/,*.conf` in `dnsmasq.conf`, writes `dnsmasq.d/spark.conf`, and starts/restarts `dnsmasq` with administrator privileges so `*.test` domains resolve to `127.0.0.1`.
+- **Automatic Nginx `servers/spark.conf` Include & Vhost Sync**: Ensures Homebrew's `nginx/servers/spark.conf` includes Spark's virtual host directory on startup, during `sync_vhosts`, and at the end of initial setup, reloading Nginx and starting all PHP-FPM FastCGI pools.
+- **Apple Silicon & Intel Homebrew Support**: Detects `/opt/homebrew` vs `/usr/local` dynamically for Nginx, Dnsmasq, and PHP-FPM configurations.
 
 ---
 
 ## 📦 Downloads & Verification
 
-- **Version**: `v0.1.4`
+- **Version**: `v0.1.5`
 - **Platform**: macOS 12.0+ (Apple Silicon `arm64` & Intel `x86_64`)
 - **Bundle**: `Spark.app`
