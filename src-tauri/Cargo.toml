@@ -1,6 +1,6 @@
 [package]
 name = "spark"
-version = "0.1.0"
+version = "0.1.1"
 description = "Native macOS Local PHP/Laravel Development Environment"
 authors = ["Antigravity"]
 edition = "2021"
@@ -30,6 +30,8 @@ rfd = "0.18.0"
 cocoa = "0.26"
 objc = "0.2"
 objc2 = "0.6"
+tauri-plugin-updater = "2.14.1"
+tauri-plugin-notification = "2.8.1"
 
 [profile.release]
 codegen-units = 1

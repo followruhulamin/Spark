@@ -9,6 +9,8 @@
     "dialog:default",
     "shell:default",
     "process:default",
+    "notification:default",
+    "updater:default",
     "core:window:allow-start-dragging",
     "core:window:allow-toggle-maximize"
   ]

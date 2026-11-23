@@ -60,6 +60,8 @@ pub struct AppSettings {
     pub dns_resolver_configured: bool,
     #[serde(default)]
     pub passwordless_sudo: bool,
+    #[serde(default)]
+    pub initial_setup_completed: bool,
 }
 
 impl Default for AppSettings {
@@ -80,6 +82,7 @@ impl Default for AppSettings {
             root_ca_installed: false,
             dns_resolver_configured: false,
             passwordless_sudo: false,
+            initial_setup_completed: false,
         }
     }
 }

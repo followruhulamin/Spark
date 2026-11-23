@@ -1,7 +1,7 @@
 # Spark Engineering Handoff Document
 
 > **Application**: Spark — Native macOS Local PHP & Laravel Development Environment  
-> **Status**: **ALPHA / ACTIVE DEVELOPMENT (v0.1.0)**  
+> **Status**: **ALPHA / ACTIVE DEVELOPMENT (v0.1.1)**  
 > **Platform**: macOS 12+ (Apple Silicon & Intel)  
 > **Target Audience**: Incoming AI Coding Agents & Engineering Collaborators  
 

@@ -1,4 +1,4 @@
-# ⚡ Spark v0.1.0 — Initial Public Release (macOS)
+# ⚡ Spark v0.1.1 — Release (macOS)
 
 > **Spark** is a lightning-fast, native macOS desktop local development environment manager for PHP and Laravel — engineered as a modern, lightweight alternative to Laravel Herd with zero Docker or Electron overhead.
 
@@ -96,5 +96,5 @@
 ## 📄 License & Verification
 
 - **License**: MIT
-- **Release Tag**: `v0.1.0`
+- **Release Tag**: `v0.1.1`
 - **Application Bundle**: `Spark.app` (Mach-O 64-bit arm64, 7.32 MiB)

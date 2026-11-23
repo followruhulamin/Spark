@@ -14,7 +14,7 @@
   <a href="https://www.rust-lang.org"><img src="https://img.shields.io/badge/Rust-2021%20Edition-DEA584?style=for-the-badge&logo=rust&logoColor=black" alt="Rust" /></a>
   <a href="https://react.dev"><img src="https://img.shields.io/badge/React-19.1-61DAFB?style=for-the-badge&logo=react&logoColor=black" alt="React 19" /></a>
   <a href="https://tailwindcss.com"><img src="https://img.shields.io/badge/Tailwind-v3.4-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white" alt="Tailwind CSS" /></a>
-  <img src="https://img.shields.io/badge/Version-v0.1.0-emerald?style=for-the-badge" alt="Version 0.1.0" />
+  <img src="https://img.shields.io/badge/Version-v0.1.1-emerald?style=for-the-badge" alt="Version 0.1.1" />
   <img src="https://img.shields.io/badge/License-MIT-blue?style=for-the-badge" alt="License MIT" />
 </p>
 

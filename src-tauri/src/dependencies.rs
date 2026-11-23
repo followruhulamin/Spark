@@ -9,7 +9,7 @@ use crate::ssl::SslManager;
 pub struct DependencyManager;
 
 impl DependencyManager {
-    fn emit_log(app: Option<&AppHandle>, step: &str, message: String, is_error: bool, is_done: bool) {
+    pub fn emit_log(app: Option<&AppHandle>, step: &str, message: String, is_error: bool, is_done: bool) {
         if let Some(handle) = app {
             let event = ScaffoldLogEvent {
                 step: step.to_string(),
@@ -101,7 +101,7 @@ impl DependencyManager {
 
         // 5. Local Root CA
         let ssl_mgr = SslManager::new();
-        let ca_installed = ssl_mgr.is_ca_installed();
+        let ca_installed = ssl_mgr.is_ca_trusted_in_system();
         list.push(DependencyItem {
             id: "root_ca".to_string(),
             name: "Spark SSL Root CA".to_string(),
