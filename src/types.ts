@@ -28,6 +28,7 @@ export interface AppSettings {
   root_ca_installed: boolean;
   dns_resolver_configured: boolean;
   passwordless_sudo: boolean;
+  initial_setup_completed?: boolean;
 }
 
 export interface PhpVersionInfo {

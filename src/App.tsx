@@ -25,6 +25,9 @@ import { ScaffoldProgressModal } from './components/ScaffoldProgressModal';
 import { SettingsView } from './components/SettingsView';
 import { DependencySetupModal } from './components/DependencySetupModal';
 import { Footer } from './components/Footer';
+import { UpdateModal } from './components/UpdateModal';
+import { check, type Update } from '@tauri-apps/plugin-updater';
+import { isPermissionGranted, requestPermission, sendNotification } from '@tauri-apps/plugin-notification';
 
 const defaultSettings: AppSettings = {
   project_paths: ['~/Spark'],
@@ -38,6 +41,7 @@ const defaultSettings: AppSettings = {
   root_ca_installed: false,
   dns_resolver_configured: false,
   passwordless_sudo: false,
+  initial_setup_completed: false,
 };
 
 const defaultMysqlStatus: MysqlStatus = {
@@ -84,6 +88,12 @@ export function App() {
   const [dependencyLogs, setDependencyLogs] = useState<ScaffoldLogEvent[]>([]);
   const [isInstallingDependency, setIsInstallingDependency] = useState(false);
   const [activeInstallingId, setActiveInstallingId] = useState<string | null>(null);
+
+  // Auto-Updater state
+  const [availableUpdate, setAvailableUpdate] = useState<Update | null>(null);
+  const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
+  const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
+  const [updateStatusText, setUpdateStatusText] = useState<string | null>(null);
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
@@ -163,13 +173,55 @@ export function App() {
     };
     window.addEventListener('keydown', handleKeyDown);
 
+    // Check for updates on launch
+    const updateTimer = setTimeout(() => {
+      handleCheckForUpdates(false);
+    }, 2000);
+
     return () => {
+      clearTimeout(updateTimer);
       unlistenScaffold.then((fn) => fn());
       unlistenDepProgress.then((fn) => fn());
       unlistenTray.then((fn) => fn());
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, []);
+
+  const handleCheckForUpdates = async (manual: boolean = false) => {
+    try {
+      setIsCheckingUpdate(true);
+      setUpdateStatusText('Checking GitHub for updates...');
+      const update = await check();
+      if (update) {
+        setAvailableUpdate(update);
+        setIsUpdateModalOpen(true);
+        setUpdateStatusText(`Update v${update.version} available!`);
+
+        try {
+          let permissionGranted = await isPermissionGranted();
+          if (!permissionGranted) {
+            const permission = await requestPermission();
+            permissionGranted = permission === 'granted';
+          }
+          if (permissionGranted) {
+            sendNotification({
+              title: 'Spark Update Available',
+              body: `Spark v${update.version} is now available to download and install.`,
+            });
+          }
+        } catch (notifErr) {
+          console.warn('[Spark] Notification error:', notifErr);
+        }
+      } else {
+        setUpdateStatusText(`Spark is up to date (v${appVersion})`);
+      }
+    } catch (err: any) {
+      console.warn('[Spark] Update check error:', err);
+      setUpdateStatusText(manual ? 'Could not reach update server' : null);
+    } finally {
+      setIsCheckingUpdate(false);
+    }
+  };
 
   const loadDependencies = async () => {
     try {
@@ -583,6 +635,9 @@ export function App() {
           onInstallNodeVersion={handleInstallNodeVersion}
           onUninstallNodeVersion={handleUninstallNodeVersion}
           onRefreshVersions={loadAppState}
+          onCheckForUpdates={() => handleCheckForUpdates(true)}
+          isCheckingUpdate={isCheckingUpdate}
+          updateStatusText={updateStatusText}
         />
       ) : (
         /* View A: Applications Manager (Main Window) */
@@ -617,7 +672,12 @@ export function App() {
       )}
 
       {/* Footer Status Bar */}
-      <Footer appVersion={appVersion} serviceHealth={serviceHealth} />
+      <Footer
+        appVersion={appVersion}
+        serviceHealth={serviceHealth}
+        newVersion={availableUpdate?.version}
+        onOpenUpdate={() => setIsUpdateModalOpen(true)}
+      />
 
       {/* Link Existing App Modal */}
       <LinkAppModal
@@ -659,6 +719,16 @@ export function App() {
         isInstalling={isInstallingDependency}
         activeInstallingId={activeInstallingId}
       />
+
+      {/* Software Update Modal */}
+      {availableUpdate && (
+        <UpdateModal
+          isOpen={isUpdateModalOpen}
+          update={availableUpdate}
+          onClose={() => setIsUpdateModalOpen(false)}
+          appVersion={appVersion}
+        />
+      )}
     </div>
   );
 }

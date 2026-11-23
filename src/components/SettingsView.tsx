@@ -31,6 +31,7 @@ interface SettingsViewProps {
   onUpdateSettings: (newSettings: AppSettings) => Promise<void>;
   onSetupRootCa: () => Promise<string>;
   onSetupDns: () => Promise<string>;
+  onAutoConfigureRouting?: () => Promise<string>;
   onEnablePasswordlessSudo?: () => Promise<string>;
   onDisablePasswordlessSudo?: () => Promise<string>;
   onSetActivePhpVersion: (ver: string) => Promise<string>;
@@ -53,6 +54,9 @@ interface SettingsViewProps {
   isInstallingDependency: boolean;
   activeInstallingId: string | null;
   appVersion?: string;
+  onCheckForUpdates?: () => Promise<void>;
+  isCheckingUpdate?: boolean;
+  updateStatusText?: string | null;
   onInstallPhpVersion?: (ver: string) => Promise<string>;
   onUninstallPhpVersion?: (ver: string) => Promise<string>;
   onInstallNodeVersion?: (ver: string) => Promise<string>;
@@ -72,6 +76,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onUpdateSettings,
   onSetupRootCa,
   onSetupDns,
+  onAutoConfigureRouting,
   onEnablePasswordlessSudo,
   onDisablePasswordlessSudo,
   onSetActivePhpVersion,
@@ -93,6 +98,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   dependencyLogs,
   isInstallingDependency,
   activeInstallingId,
+  appVersion,
+  onCheckForUpdates,
+  isCheckingUpdate,
+  updateStatusText,
   onInstallPhpVersion,
   onUninstallPhpVersion,
   onInstallNodeVersion,
@@ -177,11 +186,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           {activeTab === 'general' && (
             <GeneralTab
               settings={settings}
+              appVersion={appVersion}
               onUpdateSettings={onUpdateSettings}
               onSetupRootCa={onSetupRootCa}
               onSetupDns={onSetupDns}
+              onAutoConfigureRouting={onAutoConfigureRouting}
               onEnablePasswordlessSudo={onEnablePasswordlessSudo}
               onDisablePasswordlessSudo={onDisablePasswordlessSudo}
+              onCheckForUpdates={onCheckForUpdates}
+              isCheckingUpdate={isCheckingUpdate}
+              updateStatusText={updateStatusText}
             />
           )}
 

@@ -1,21 +1,39 @@
 import React from 'react';
+import { Sparkles } from 'lucide-react';
 import { ServiceHealth } from '../types';
 
 interface FooterProps {
   appVersion: string;
   serviceHealth: ServiceHealth;
+  newVersion?: string | null;
+  onOpenUpdate?: () => void;
 }
 
-export const Footer: React.FC<FooterProps> = ({ appVersion, serviceHealth }) => {
+export const Footer: React.FC<FooterProps> = ({
+  appVersion,
+  serviceHealth,
+  newVersion,
+  onOpenUpdate,
+}) => {
   return (
     <footer className="shrink-0 h-[30px] z-30 flex items-center justify-between px-4 bg-[#141418]/95 backdrop-blur-xl border-t border-white/[0.08] select-none text-[11px] font-mono">
-      {/* Left: App Version */}
+      {/* Left: App Version & Updates */}
       <div className="flex items-center space-x-2 text-white/40">
         <span className="font-semibold text-white/50">Spark</span>
         <span className="text-white/20">•</span>
         <span className="px-1.5 py-0.5 rounded bg-white/[0.05] border border-white/[0.06] text-white/50">
           v{appVersion}
         </span>
+        {newVersion && onOpenUpdate && (
+          <button
+            onClick={onOpenUpdate}
+            className="flex items-center space-x-1.5 px-2 py-0.5 rounded-full bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 border border-blue-500/30 transition text-[10px] animate-pulse pointer-events-auto"
+            title={`Spark update v${newVersion} is available. Click to review.`}
+          >
+            <Sparkles className="w-2.5 h-2.5 text-blue-400" />
+            <span className="font-sans font-medium">Update to v{newVersion}</span>
+          </button>
+        )}
       </div>
 
       {/* Right: Service Health Indicators */}

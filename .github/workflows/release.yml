@@ -1,0 +1,109 @@
+name: Release Spark
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build & Release (${{ matrix.platform.name }})
+    runs-on: ${{ matrix.platform.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - name: 'Apple Silicon (arm64)'
+            os: 'macos-latest'
+            arch: 'arm64'
+            target: 'aarch64-apple-darwin'
+            args: '--target aarch64-apple-darwin'
+          - name: 'Intel (x64)'
+            os: 'macos-13'
+            arch: 'x64'
+            target: 'x86_64-apple-darwin'
+            args: '--target x86_64-apple-darwin'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform.target }}
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Configure updater signing if secret is missing
+        run: |
+          if [ -z "${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}" ]; then
+            echo "TAURI_SIGNING_PRIVATE_KEY is not set. Temporarily disabling createUpdaterArtifacts."
+            sed -i '' 's/"createUpdaterArtifacts": true/"createUpdaterArtifacts": false/' src-tauri/tauri.conf.json || true
+          fi
+
+      - name: Build & Publish Release with Updater Artifacts
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'Spark ${{ github.ref_name }}'
+          releaseBody: 'See release assets below to download Spark for macOS.'
+          releaseDraft: false
+          prerelease: false
+          args: ${{ matrix.platform.args }}
+
+      - name: Package macOS Zip Bundle
+        run: |
+          TAG="${{ github.ref_name }}"
+          if [[ ! "$TAG" =~ ^v[0-9] ]]; then
+            TAG="v$(node -p "require('./package.json').version")"
+          fi
+          
+          APP_PATH=$(find src-tauri/target -name "Spark.app" -type d | head -n 1)
+          if [ -z "$APP_PATH" ]; then
+            echo "Error: Spark.app not found!"
+            exit 1
+          fi
+          
+          echo "Found Spark.app at: $APP_PATH"
+          codesign --force --deep -s - "$APP_PATH"
+          xattr -cr "$APP_PATH"
+          
+          BUNDLE_DIR=$(dirname "$APP_PATH")
+          ZIP_NAME="Spark-${TAG}-macos-${{ matrix.platform.arch }}.zip"
+          
+          echo "Packaging $ZIP_NAME..."
+          cd "$BUNDLE_DIR"
+          ditto -c -k --sequesterRsrc --keepParent Spark.app "$ZIP_NAME"
+          
+          echo "Created $BUNDLE_DIR/$ZIP_NAME"
+          ls -lh "$ZIP_NAME"
+
+      - name: Upload Zip Bundle to Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: |
+            src-tauri/target/**/bundle/macos/Spark-*.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::process::Command;
 use std::sync::Mutex;
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Manager, State};
 use crate::config::ConfigStore;
 use crate::dependencies::DependencyManager;
 use crate::dns::DnsResolverManager;
@@ -612,8 +612,132 @@ pub async fn install_all_missing_dependencies(app: AppHandle) -> Result<String, 
 }
 
 #[tauri::command]
-pub fn is_first_run_needed() -> bool {
+pub fn is_first_run_needed(state: State<'_, AppState>) -> bool {
+    let settings = state.settings.lock().map(|s| s.clone()).unwrap_or_default();
+    if !settings.initial_setup_completed {
+        return true;
+    }
+    if !state.ssl.is_ca_trusted_in_system() {
+        return true;
+    }
+    if !DnsResolverManager::is_resolver_configured() {
+        return true;
+    }
     DependencyManager::is_first_run_needed()
+}
+
+#[tauri::command]
+pub async fn run_initial_setup(
+    enable_passwordless_sudo: bool,
+    default_ide: Option<String>,
+    app: AppHandle,
+) -> Result<String, String> {
+    tokio::task::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        // Step 1: Ensure project directory ~/Spark exists
+        let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("/Users/ruhulamin"));
+        let spark_dir = home.join("Spark");
+        let _ = std::fs::create_dir_all(&spark_dir);
+        DependencyManager::emit_log(Some(&app), "dir", format!("Verified projects directory at {}", spark_dir.display()), false, true);
+
+        // Step 2: Ensure Root CA and trust it
+        DependencyManager::emit_log(Some(&app), "root_ca", "Generating and trusting Spark SSL Root CA in Keychain...".to_string(), false, false);
+        state.ssl.ensure_root_ca()?;
+        let ca_res = state.ssl.trust_root_ca_in_keychain()?;
+        DependencyManager::emit_log(Some(&app), "root_ca", ca_res, false, true);
+
+        // Step 3: Configure DNS Resolver
+        DependencyManager::emit_log(Some(&app), "dns", "Configuring macOS /etc/resolver/test route...".to_string(), false, false);
+        let dns_res = DnsResolverManager::configure_resolver()?;
+        DependencyManager::emit_log(Some(&app), "dns", dns_res, false, true);
+
+        // Step 4: Passwordless sudo (if requested)
+        if enable_passwordless_sudo {
+            DependencyManager::emit_log(Some(&app), "sudo", "Configuring passwordless administrator access...".to_string(), false, false);
+            match crate::privilege::PrivilegeManager::enable_passwordless_sudo() {
+                Ok(msg) => DependencyManager::emit_log(Some(&app), "sudo", msg, false, true),
+                Err(err) => DependencyManager::emit_log(Some(&app), "sudo", format!("Optional authorization note: {}", err), false, false),
+            }
+        }
+
+        // Step 5: Check and install any missing essential dependencies (nginx, dnsmasq, etc.)
+        let deps = DependencyManager::check_dependencies();
+        let missing: Vec<_> = deps.into_iter().filter(|d| d.is_required && !d.is_installed).collect();
+        for dep in missing {
+            if dep.id != "root_ca" && dep.id != "dns_resolver" {
+                let _ = DependencyManager::install_dependency(&dep.id, Some(&app));
+            }
+        }
+
+        // Step 6: Configure and restart services
+        DependencyManager::emit_log(Some(&app), "services", "Configuring Spark Nginx virtual hosts & Dnsmasq...".to_string(), false, false);
+        let spark_nginx = home.join("Library/Application Support/Spark/nginx");
+        let _ = std::fs::create_dir_all(&spark_nginx);
+
+        let servers_dir = PathBuf::from("/opt/homebrew/etc/nginx/servers");
+        if servers_dir.exists() {
+            let conf_file = servers_dir.join("spark.conf");
+            let conf_content = format!("include \"{}/*.conf\";\n", spark_nginx.display());
+            let _ = std::fs::write(&conf_file, conf_content);
+        }
+
+        let _ = Command::new("brew").args(["services", "restart", "nginx"]).output();
+        let _ = Command::new("brew").args(["services", "restart", "dnsmasq"]).output();
+        DependencyManager::emit_log(Some(&app), "services", "Background daemons active and ready".to_string(), false, true);
+
+        // Step 7: Update and save settings
+        if let Ok(mut settings) = state.settings.lock() {
+            settings.initial_setup_completed = true;
+            settings.root_ca_installed = state.ssl.is_ca_trusted_in_system();
+            settings.dns_resolver_configured = DnsResolverManager::is_resolver_configured();
+            settings.passwordless_sudo = crate::privilege::PrivilegeManager::is_passwordless_sudo_configured();
+            if let Some(ide_str) = default_ide {
+                match ide_str.to_lowercase().as_str() {
+                    "antigravity" => settings.default_ide = SupportedIde::Antigravity,
+                    "cursor" => settings.default_ide = SupportedIde::Cursor,
+                    "vscode" => settings.default_ide = SupportedIde::Vscode,
+                    "zed" => settings.default_ide = SupportedIde::Zed,
+                    _ => {}
+                }
+            }
+            if let Ok(sites) = state.sites.lock() {
+                let _ = state.config.save(&settings, &sites);
+            }
+        }
+
+        DependencyManager::emit_log(Some(&app), "complete", "Spark initial setup completed successfully!".to_string(), false, true);
+        Ok("Initial setup completed successfully".to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub fn auto_configure_routing(state: State<'_, AppState>) -> Result<String, String> {
+    let mut messages = Vec::new();
+
+    // 1. Root CA
+    match state.ssl.trust_root_ca_in_keychain() {
+        Ok(m) => messages.push(format!("Root CA: {}", m)),
+        Err(e) => return Err(format!("Root CA setup failed: {}", e)),
+    }
+
+    // 2. DNS Resolver
+    match DnsResolverManager::configure_resolver() {
+        Ok(m) => messages.push(format!("DNS Resolver: {}", m)),
+        Err(e) => return Err(format!("DNS setup failed: {}", e)),
+    }
+
+    // Update settings
+    if let Ok(mut settings) = state.settings.lock() {
+        settings.root_ca_installed = state.ssl.is_ca_trusted_in_system();
+        settings.dns_resolver_configured = DnsResolverManager::is_resolver_configured();
+        if let Ok(sites) = state.sites.lock() {
+            let _ = state.config.save(&settings, &sites);
+        }
+    }
+
+    Ok(messages.join(" | "))
 }
 
 #[tauri::command]

@@ -51,6 +51,33 @@ pub fn run() {
     let (mut initial_settings, initial_sites) = config_store.load();
     let _ = ssl_manager.ensure_root_ca();
 
+    // 1. Automatically trust Root CA in user login keychain if needed (does not require admin password prompt)
+    if let Some(home) = dirs::home_dir() {
+        let user_keychain = home.join("Library/Keychains/login.keychain-db");
+        if user_keychain.exists() && ssl_manager.ca_cert_path().exists() {
+            let _ = std::process::Command::new("security")
+                .args([
+                    "add-trusted-cert",
+                    "-p", "ssl",
+                    "-p", "basic",
+                    "-r", "trustRoot",
+                    "-k", &user_keychain.to_string_lossy(),
+                    &ssl_manager.ca_cert_path().to_string_lossy(),
+                ])
+                .output();
+        }
+    }
+
+    // 2. If passwordless sudo is configured, automatically trust Root CA in System keychain and setup DNS route
+    if privilege::PrivilegeManager::can_run_sudo_without_password() {
+        if !ssl_manager.is_ca_trusted_in_system() {
+            let _ = ssl_manager.trust_root_ca_in_keychain();
+        }
+        if !dns::DnsResolverManager::is_resolver_configured() {
+            let _ = dns::DnsResolverManager::configure_resolver();
+        }
+    }
+
     let scanned_sites = config_store.scan_project_paths(
         &initial_settings.project_paths,
         &initial_sites,
@@ -60,6 +87,16 @@ pub fn run() {
     initial_settings.root_ca_installed = ssl_manager.is_ca_trusted_in_system();
     initial_settings.dns_resolver_configured = dns::DnsResolverManager::is_resolver_configured();
     initial_settings.passwordless_sudo = privilege::PrivilegeManager::is_passwordless_sudo_configured();
+
+    // 3. If Root CA & DNS are configured, check if we can mark initial_setup_completed
+    if initial_settings.root_ca_installed && initial_settings.dns_resolver_configured && !initial_settings.initial_setup_completed {
+        let deps = dependencies::DependencyManager::check_dependencies();
+        let all_required = !deps.iter().any(|d| d.is_required && !d.is_installed);
+        if all_required {
+            initial_settings.initial_setup_completed = true;
+            let _ = config_store.save(&initial_settings, &scanned_sites);
+        }
+    }
 
     let _ = service_manager.sync_vhosts(&scanned_sites, Some(&initial_settings.active_php_version));
 
@@ -148,6 +185,8 @@ pub fn run() {
             check_passwordless_sudo,
             enable_passwordless_sudo,
             disable_passwordless_sudo,
+            run_initial_setup,
+            auto_configure_routing,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Spark application")

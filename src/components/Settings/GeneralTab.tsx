@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Folder, Plus, Minus, ShieldCheck, Globe, Check, Loader2, KeyRound } from 'lucide-react';
+import { Folder, Plus, Minus, ShieldCheck, Globe, Check, Loader2, KeyRound, Sparkles } from 'lucide-react';
 import { AppSettings, SupportedIde } from '../../types';
 
 interface GeneralTabProps {
@@ -7,9 +7,13 @@ interface GeneralTabProps {
   onUpdateSettings: (newSettings: AppSettings) => Promise<void>;
   onSetupRootCa: () => Promise<string>;
   onSetupDns: () => Promise<string>;
+  onAutoConfigureRouting?: () => Promise<string>;
   onEnablePasswordlessSudo?: () => Promise<string>;
   onDisablePasswordlessSudo?: () => Promise<string>;
   appVersion?: string;
+  onCheckForUpdates?: () => Promise<void>;
+  isCheckingUpdate?: boolean;
+  updateStatusText?: string | null;
 }
 
 export const GeneralTab: React.FC<GeneralTabProps> = ({
@@ -17,8 +21,13 @@ export const GeneralTab: React.FC<GeneralTabProps> = ({
   onUpdateSettings,
   onSetupRootCa,
   onSetupDns,
+  onAutoConfigureRouting,
   onEnablePasswordlessSudo,
   onDisablePasswordlessSudo,
+  appVersion,
+  onCheckForUpdates,
+  isCheckingUpdate = false,
+  updateStatusText = null,
 }) => {
   const [newPathInput, setNewPathInput] = useState('');
   const [caLoading, setCaLoading] = useState(false);
@@ -26,8 +35,34 @@ export const GeneralTab: React.FC<GeneralTabProps> = ({
   const [sudoLoading, setSudoLoading] = useState(false);
   const [caMessage, setCaMessage] = useState<string | null>(null);
   const [dnsMessage, setDnsMessage] = useState<string | null>(null);
+  const [autoConfigLoading, setAutoConfigLoading] = useState(false);
+  const [autoConfigMessage, setAutoConfigMessage] = useState<string | null>(null);
   const [sudoMessage, setSudoMessage] = useState<string | null>(null);
   const [sudoError, setSudoError] = useState(false);
+
+  const handleConfigureBoth = async () => {
+    setAutoConfigLoading(true);
+    setAutoConfigMessage(null);
+    try {
+      if (onAutoConfigureRouting) {
+        const res = await onAutoConfigureRouting();
+        setAutoConfigMessage(res);
+      } else {
+        await onSetupRootCa();
+        await onSetupDns();
+        setAutoConfigMessage('Root CA and DNS resolver successfully configured!');
+      }
+      await onUpdateSettings({
+        ...settings,
+        root_ca_installed: true,
+        dns_resolver_configured: true,
+      });
+    } catch (e: any) {
+      setAutoConfigMessage(e?.toString() || 'Failed to auto-configure routing');
+    } finally {
+      setAutoConfigLoading(false);
+    }
+  };
 
   const handleToggle = async (key: keyof AppSettings) => {
     const updated = { ...settings, [key]: !settings[key] };
@@ -234,6 +269,36 @@ export const GeneralTab: React.FC<GeneralTabProps> = ({
             <span className="w-4 h-4 bg-white rounded-full shadow-md" />
           </button>
         </div>
+
+        <div className="flex items-center justify-between pt-2 border-t border-white/[0.06]">
+          <div>
+            <div className="text-xs font-medium text-white flex items-center space-x-2">
+              <span>Spark Version v{appVersion || '0.1.0'}</span>
+            </div>
+            <div className="text-[11px] text-white/50">
+              {updateStatusText || 'Check GitHub for the latest releases and updates'}
+            </div>
+          </div>
+          {onCheckForUpdates && (
+            <button
+              onClick={onCheckForUpdates}
+              disabled={isCheckingUpdate}
+              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/[0.06] hover:bg-white/[0.1] text-white border border-white/[0.08] transition active:scale-95 disabled:opacity-50"
+            >
+              {isCheckingUpdate ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span>Checking...</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-3.5 h-3.5 text-blue-400" />
+                  <span>Check for Updates</span>
+                </>
+              )}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Default IDE Selector */}
@@ -269,7 +334,31 @@ export const GeneralTab: React.FC<GeneralTabProps> = ({
 
       {/* Zero-Config HTTPS & DNS Setup */}
       <div className="p-4 rounded-xl bg-white/[0.03] border border-white/[0.08] space-y-4">
-        <h4 className="text-xs font-semibold text-white uppercase tracking-wider">Zero-Config HTTPS & DNS Routing</h4>
+        <div className="flex items-center justify-between">
+          <div>
+            <h4 className="text-xs font-semibold text-white uppercase tracking-wider">Zero-Config HTTPS & DNS Routing</h4>
+            <p className="text-xs text-white/50 mt-0.5">Enables green padlock SSL and local *.test loopback resolution.</p>
+          </div>
+          {(!settings.root_ca_installed || !settings.dns_resolver_configured) && (
+            <button
+              onClick={handleConfigureBoth}
+              disabled={autoConfigLoading}
+              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-600 hover:bg-blue-500 text-white shadow-sm shadow-blue-500/20 transition active:scale-95 disabled:opacity-50"
+            >
+              {autoConfigLoading ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Sparkles className="w-3.5 h-3.5 text-blue-200" />
+              )}
+              <span>Auto-Configure Both</span>
+            </button>
+          )}
+        </div>
+        {autoConfigMessage && (
+          <p className="text-xs text-emerald-400 font-mono bg-emerald-500/10 p-2.5 rounded-lg border border-emerald-500/20">
+            {autoConfigMessage}
+          </p>
+        )}
 
         {/* Root CA */}
         <div className="flex items-center justify-between">
