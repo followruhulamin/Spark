@@ -15,6 +15,7 @@ interface SiteListProps {
   onSetPhpVersion: (id: string, version: string) => void;
   onUnlink: (id: string) => void;
   onDelete: (id: string) => void;
+  onMove: (id: string, newDestination: string) => Promise<void>;
   onOpenCreate: () => void;
   onOpenLink: () => void;
 }
@@ -31,6 +32,7 @@ export const SiteList: React.FC<SiteListProps> = ({
   onSetPhpVersion,
   onUnlink,
   onDelete,
+  onMove,
   onOpenCreate,
   onOpenLink,
 }) => {
@@ -109,6 +111,7 @@ export const SiteList: React.FC<SiteListProps> = ({
                 onSetPhpVersion={onSetPhpVersion}
                 onUnlink={onUnlink}
                 onDelete={onDelete}
+                onMove={onMove}
               />
             ))}
           </div>
@@ -136,6 +139,7 @@ export const SiteList: React.FC<SiteListProps> = ({
                 onSetPhpVersion={onSetPhpVersion}
                 onUnlink={onUnlink}
                 onDelete={onDelete}
+                onMove={onMove}
               />
             ))}
           </div>

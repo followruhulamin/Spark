@@ -168,6 +168,7 @@ pub fn run() {
             link_site,
             unlink_site,
             delete_site,
+            move_site,
             toggle_favorite,
             toggle_https,
             set_site_php_version,

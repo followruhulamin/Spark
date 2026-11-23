@@ -9,6 +9,7 @@ import {
   Terminal,
   Trash2,
   Folder,
+  FolderInput,
   Box,
   MoreVertical,
   Unlink,
@@ -17,6 +18,7 @@ import {
   X,
 } from 'lucide-react';
 import { Site, SupportedIde } from '../types';
+import { MoveSiteModal } from './MoveSiteModal';
 
 interface SiteRowProps {
   site: Site;
@@ -29,6 +31,7 @@ interface SiteRowProps {
   onSetPhpVersion: (id: string, version: string) => void;
   onUnlink: (id: string) => void;
   onDelete: (id: string) => void;
+  onMove?: (id: string, newDestination: string) => Promise<void>;
 }
 
 const FRAMEWORK_BADGES: Record<string, { label: string; color: string; bg: string }> = {
@@ -52,13 +55,15 @@ export const SiteRow: React.FC<SiteRowProps> = ({
   onSetPhpVersion,
   onUnlink,
   onDelete,
+  onMove,
 }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isPhpModalOpen, setIsPhpModalOpen] = useState(false);
+  const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!isMenuOpen && !isPhpModalOpen) return;
+    if (!isMenuOpen && !isPhpModalOpen && !isMoveModalOpen) return;
 
     const handleClickOutside = (event: MouseEvent | PointerEvent) => {
       const target = event.target as Node;
@@ -275,6 +280,17 @@ export const SiteRow: React.FC<SiteRowProps> = ({
                 <span>Change PHP Version</span>
               </button>
 
+              <button
+                onClick={() => {
+                  setIsMenuOpen(false);
+                  setIsMoveModalOpen(true);
+                }}
+                className="w-full text-left px-3 py-2 hover:bg-white/[0.08] transition flex items-center space-x-2.5 text-white/80 hover:text-white"
+              >
+                <FolderInput className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                <span>Move Site</span>
+              </button>
+
               <div className="my-1 border-t border-white/[0.08]" />
 
               <button
@@ -395,6 +411,14 @@ export const SiteRow: React.FC<SiteRowProps> = ({
           </div>
         </div>
       )}
+
+      {/* Move Site Modal Popup */}
+      <MoveSiteModal
+        site={site}
+        isOpen={isMoveModalOpen}
+        onClose={() => setIsMoveModalOpen(false)}
+        onMove={onMove || (async () => {})}
+      />
     </div>
   );
 };

@@ -572,6 +572,11 @@ export function App() {
     }
   };
 
+  const handleMoveSite = async (id: string, newDestination: string) => {
+    const updated = await invoke<Site>('move_site', { id, newDestination });
+    setSites((prev) => prev.map((s) => (s.id === id ? updated : s)));
+  };
+
   const handleToggleFavorite = async (id: string) => {
     try {
       const fav = await invoke<boolean>('toggle_favorite', { id });
@@ -777,6 +782,7 @@ export function App() {
             onSetPhpVersion={handleSetSitePhpVersion}
             onUnlink={handleUnlinkSite}
             onDelete={handleDeleteSite}
+            onMove={handleMoveSite}
             onOpenCreate={() => setIsCreateOpen(true)}
             onOpenLink={() => setIsLinkModalOpen(true)}
           />

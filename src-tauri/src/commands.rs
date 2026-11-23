@@ -239,6 +239,101 @@ pub fn delete_site(id: String, state: State<'_, AppState>) -> Result<String, Str
 }
 
 #[tauri::command]
+pub fn move_site(id: String, new_destination: String, state: State<'_, AppState>) -> Result<Site, String> {
+    let settings = state.settings.lock().map_err(|e| e.to_string())?;
+    let mut sites = state.sites.lock().map_err(|e| e.to_string())?;
+
+    let site = sites.iter().find(|s| s.id == id).cloned()
+        .ok_or_else(|| "Site not found".to_string())?;
+
+    let old_path = PathBuf::from(&site.path);
+    if !old_path.exists() {
+        return Err(format!("Current site directory does not exist: {}", site.path));
+    }
+
+    let folder_name = old_path.file_name()
+        .ok_or_else(|| "Invalid source folder name".to_string())?;
+
+    let target_input = PathBuf::from(&new_destination);
+
+    // Determine target directory:
+    // If target exists and is a directory:
+    //   - If target folder name matches source folder name, assume full target path was chosen
+    //   - Otherwise, append folder_name to the chosen parent folder
+    let target_path = if target_input.exists() && target_input.is_dir() {
+        if target_input.file_name() == Some(folder_name) {
+            target_input
+        } else {
+            target_input.join(folder_name)
+        }
+    } else {
+        target_input
+    };
+
+    if target_path == old_path {
+        return Err("Destination is identical to the current site path".to_string());
+    }
+
+    if target_path.exists() {
+        return Err(format!("Destination folder already exists: {}", target_path.display()));
+    }
+
+    if target_path.starts_with(&old_path) {
+        return Err("Cannot move a folder into a subdirectory of itself".to_string());
+    }
+
+    if let Some(home) = dirs::home_dir() {
+        if old_path.canonicalize().unwrap_or_else(|_| old_path.clone()) == home.canonicalize().unwrap_or(home) {
+            return Err("Cannot move the user home directory".to_string());
+        }
+    }
+
+    // Ensure parent directory of target exists
+    if let Some(parent) = target_path.parent() {
+        if !parent.exists() {
+            std::fs::create_dir_all(parent)
+                .map_err(|e| format!("Failed to create parent destination directory: {}", e))?;
+        }
+    }
+
+    // Perform move: try std::fs::rename first; fallback to ditto for cross-volume moves
+    if let Err(rename_err) = std::fs::rename(&old_path, &target_path) {
+        let ditto_res = Command::new("ditto")
+            .args([old_path.as_os_str(), target_path.as_os_str()])
+            .output();
+
+        match ditto_res {
+            Ok(out) if out.status.success() => {
+                let _ = std::fs::remove_dir_all(&old_path)
+                    .or_else(|_| Command::new("rm").args(["-rf", &old_path.to_string_lossy()]).output().map(|_| ()));
+            }
+            Ok(out) => {
+                let err_msg = String::from_utf8_lossy(&out.stderr);
+                return Err(format!("Failed to move site directory: {}", if err_msg.is_empty() { rename_err.to_string() } else { err_msg.to_string() }));
+            }
+            Err(e) => {
+                return Err(format!("Failed to copy site to new destination: {}", e));
+            }
+        }
+    }
+
+    let mut site_updated = site.clone();
+    site_updated.path = target_path.to_string_lossy().to_string();
+
+    // Re-generate virtual host configuration pointing to the new root directory and reload Nginx
+    let _ = state.services.generate_vhost_config(&site_updated, Some(&settings.active_php_version));
+    state.services.reload_nginx();
+
+    // Update sites state and persist configuration
+    if let Some(s) = sites.iter_mut().find(|s| s.id == id) {
+        *s = site_updated.clone();
+    }
+    state.config.save(&settings, &sites)?;
+
+    Ok(site_updated)
+}
+
+#[tauri::command]
 pub fn toggle_favorite(id: String, state: State<'_, AppState>) -> Result<bool, String> {
     let settings = state.settings.lock().map_err(|e| e.to_string())?;
     let mut sites = state.sites.lock().map_err(|e| e.to_string())?;
