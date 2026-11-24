@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="public/spark.svg" alt="Spark Logo" width="96" height="96" />
+  <img src="public/logo.svg" alt="Spark Logo" width="96" height="96" />
 </p>
 
 <h1 align="center">Spark</h1>

@@ -76,7 +76,7 @@ export function App() {
     yarn: false,
   });
   const [serviceHealth, setServiceHealth] = useState<ServiceHealth>(defaultServiceHealth);
-  const [appVersion, setAppVersion] = useState<string>('0.1.5');
+  const [appVersion, setAppVersion] = useState<string>('0.1.6');
 
   const [searchQuery, setSearchQuery] = useState('');
   const [isCreateOpen, setIsCreateOpen] = useState(false);

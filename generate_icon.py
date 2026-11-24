@@ -1,10 +1,12 @@
 import os
 import subprocess
 import shutil
+from PIL import Image
+import numpy as np
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-SVG_PATH = os.path.join(BASE_DIR, "public", "spark.svg")
-MONO_SVG_PATH = os.path.join(BASE_DIR, "public", "spark-mono.svg")
+LOGO_PATH = os.path.join(BASE_DIR, "public", "logo.svg")
+ICON_PATH = os.path.join(BASE_DIR, "public", "icon.svg")
 ICONS_DIR = os.path.join(BASE_DIR, "src-tauri", "icons")
 MASTER_PATH = os.path.join(BASE_DIR, "master_icon.png")
 TRAY_PATH = os.path.join(ICONS_DIR, "tray_icon.png")
@@ -16,7 +18,7 @@ import Cocoa
 func renderSvg(svgPath: String, outPath: String, width: Int, height: Int) {{
     let url = URL(fileURLWithPath: svgPath)
     guard let svgImage = NSImage(contentsOf: url) else {{
-        fputs("Failed to load \\(svgPath)\\\\n", stderr)
+        fputs("Failed to load \\(svgPath)\\n", stderr)
         exit(1)
     }}
     let size = NSSize(width: width, height: height)
@@ -50,36 +52,52 @@ renderSvg(svgPath: "{svg_path}", outPath: "{out_path}", width: {width}, height: 
 """
     subprocess.run(["swift", "-e", swift_code], check=True)
 
+def generate_tray_icon():
+    temp_tray = os.path.join(ICONS_DIR, "_temp_tray.png")
+    # Render at high resolution 88x88 then resize with high quality
+    render_svg_with_swift(ICON_PATH, temp_tray, 88, 88)
+    
+    img = Image.open(temp_tray)
+    arr = np.array(img)
+    alpha = arr[:, :, 3]
+    
+    # Create black template with preserved alpha
+    template_arr = np.zeros_like(arr)
+    template_arr[:, :, 3] = alpha
+    template_img = Image.fromarray(template_arr)
+    
+    # Scale to 38x38 centered in 44x44 canvas for ideal macOS menu bar spacing
+    target_canvas = Image.new('RGBA', (44, 44), (0, 0, 0, 0))
+    resized_glyph = template_img.resize((38, 38), Image.Resampling.LANCZOS)
+    target_canvas.paste(resized_glyph, (3, 3))
+    target_canvas.save(TRAY_PATH, 'PNG')
+    
+    if os.path.exists(temp_tray):
+        os.remove(temp_tray)
+    print(f"macOS menu bar template icon generated at {TRAY_PATH}")
+
 def generate_all():
     os.makedirs(ICONS_DIR, exist_ok=True)
 
-    # 1. Ensure public/spark-mono.svg exists
-    if not os.path.exists(MONO_SVG_PATH):
-        mono_svg_content = '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
-  <rect x="5" y="5" width="90" height="90" rx="22" stroke="#000000" stroke-width="7"/>
-  <text x="50" y="71" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif" font-size="65" font-weight="900" text-anchor="middle" fill="#000000">S</text>
-  <circle cx="77" cy="23" r="5.5" fill="#000000" />
-</svg>
-'''
-        with open(MONO_SVG_PATH, "w", encoding="utf-8") as f:
-            f.write(mono_svg_content)
-        print("Created public/spark-mono.svg")
+    if not os.path.exists(LOGO_PATH):
+        raise FileNotFoundError(f"Logo SVG not found at {LOGO_PATH}")
+    if not os.path.exists(ICON_PATH):
+        raise FileNotFoundError(f"Icon SVG not found at {ICON_PATH}")
 
-    # 2. Render master app icon (1024x1024) from public/spark.svg
-    print("Rendering 1024x1024 master app icon from public/spark.svg...")
-    render_svg_with_swift(SVG_PATH, MASTER_PATH, 1024, 1024)
+    # 1. Render master app icon (1024x1024) from public/logo.svg
+    print("Rendering 1024x1024 master app icon from public/logo.svg...")
+    render_svg_with_swift(LOGO_PATH, MASTER_PATH, 1024, 1024)
     shutil.copyfile(MASTER_PATH, os.path.join(ICONS_DIR, "icon.png"))
     print("Master app icon generated at master_icon.png and src-tauri/icons/icon.png")
 
-    # 3. Render black & white macOS menu bar template icon (44x44, 22pt @2x)
-    print("Rendering black & white menu bar icon from public/spark-mono.svg...")
-    render_svg_with_swift(MONO_SVG_PATH, TRAY_PATH, 44, 44)
-    print("Menu bar template icon generated at src-tauri/icons/tray_icon.png")
+    # 2. Render macOS menu bar template icon (44x44) from public/icon.svg
+    print("Rendering macOS menu bar icon from public/icon.svg...")
+    generate_tray_icon()
 
-    # 4. Generate all platform icon assets (icon.icns, icon.ico, Tauri PNGs)
+    # 3. Generate all platform icon assets (icon.icns, icon.ico, Tauri PNGs)
     from export_all_icons import export_icons
     export_icons()
-    print("All Spark icons generated successfully from public/spark.svg!")
+    print("All Spark icons generated successfully from public/logo.svg and public/icon.svg!")
 
 if __name__ == "__main__":
     generate_all()

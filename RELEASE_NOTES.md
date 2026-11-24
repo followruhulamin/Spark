@@ -1,21 +1,21 @@
-# ⚡ Spark v0.1.5 — First-Time Setup & Local Routing Fixes
+# ⚡ Spark v0.1.6 — Brand Identity & Native Menu Bar Icon Refresh
 
-This release fixes first-time macOS installation issues where `.test` websites failed to load out of the box, ensuring seamless DNS resolution, Nginx virtual host routing, and PHP-FPM socket configuration on both Apple Silicon and Intel Macs.
+This release introduces Spark's refreshed brand identity and a redesigned native macOS menu bar status icon, alongside full cleanup of legacy assets and an updated multi-resolution bundle icon pipeline.
 
 ---
 
-## 🛠️ What's Fixed & Improved in v0.1.5
+## 🛠️ What's Changed in v0.1.6
 
-### 🌐 Reliable First-Time `.test` Website Loading
-- **Complete Onboarding Setup Wiring**: Connected `DependencySetupModal` to `run_initial_setup`, `setup_root_ca`, `setup_dns_resolver`, `enable_passwordless_sudo`, and settings persistence so Quick Auto-Setup configures the entire stack in one click.
-- **Dnsmasq `conf-dir` & Privileged Port 53 Startup**: Automatically enables `conf-dir=<prefix>/etc/dnsmasq.d/,*.conf` in `dnsmasq.conf`, writes `dnsmasq.d/spark.conf`, and starts/restarts `dnsmasq` with administrator privileges so `*.test` domains resolve to `127.0.0.1`.
-- **Automatic Nginx `servers/spark.conf` Include & Vhost Sync**: Ensures Homebrew's `nginx/servers/spark.conf` includes Spark's virtual host directory on startup, during `sync_vhosts`, and at the end of initial setup, reloading Nginx and starting all PHP-FPM FastCGI pools.
-- **Apple Silicon & Intel Homebrew Support**: Detects `/opt/homebrew` vs `/usr/local` dynamically for Nginx, Dnsmasq, and PHP-FPM configurations.
+### 🎨 Refreshed Visual Identity & App Icon
+- **New Logo Emblem (`logo.svg`)**: Vibrant gradient squircle with crisp white Spark monogram used across the app UI (Header, Update modals, Onboarding) and compiled into high-resolution multi-size app bundles (`icon.icns`, `icon.ico`, `icon.png`, `1024x1024`).
+- **Native macOS Menu Bar Template Icon (`icon.svg`)**: Pixel-perfect 44×44 (22pt @2x) monochrome template status item with anti-aliased alpha mask that seamlessly adapts to macOS light/dark modes and wallpaper translucency.
+- **Legacy Asset Cleanup**: Purged deprecated and starter SVGs (`spark.svg`, `spark-mono.svg`, `vite.svg`, `tauri.svg`, `react.svg`).
+- **Automated Multi-Resolution Generator**: Updated `generate_icon.py` and `export_all_icons.py` to compile native icons directly from the new SVG assets using macOS `swift` and `iconutil`.
 
 ---
 
 ## 📦 Downloads & Verification
 
-- **Version**: `v0.1.5`
+- **Version**: `v0.1.6`
 - **Platform**: macOS 12.0+ (Apple Silicon `arm64` & Intel `x86_64`)
 - **Bundle**: `Spark.app`

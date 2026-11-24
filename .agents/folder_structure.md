@@ -16,7 +16,8 @@ This document details the folder structure and architectural layout of the **Spa
 ├── .github/                          # GitHub workflows and CI configurations (if applicable)
 │
 ├── public/                           # Static assets served by Vite
-│   └── spark.svg                     # Spark application vector emblem
+│   ├── logo.svg                      # Spark application vector emblem & logo
+│   └── icon.svg                      # Spark menu bar vector icon
 │
 ├── src/                              # React 19 Frontend Application
 │   ├── assets/                       # Local icons, SVG artwork, and graphics
