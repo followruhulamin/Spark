@@ -1,9 +1,9 @@
 name: Release Spark
 
+# Disabled automatic execution on tag push because releases are built, signed,
+# and published locally via ./release.sh using local Minisign keys.
+# This prevents failed CI cloud runs and failure notification emails.
 on:
-  push:
-    tags:
-      - 'v*'
   workflow_dispatch:
 
 permissions:
